@@ -34,6 +34,33 @@ class ImageFinder(object):
         self._immediate_threshold = immediate_threshold
 
     def locate_in(self, scene):
+        """Return the location and size of the best match in the scene from the
+         available internal templates.
+
+        Arguments:
+        scene_std: opencv (numpy) bgr, bgra or gray image.
+
+        Return:
+        tuple of location (top, left) and size (height, width)
+        """
+        scene_std = self._standardize(scene)
+        minloc_minval_size = list()
+        for size, template in self._templates.items():
+            # don't use normalized. don't want false matches
+            result = cv2.matchTemplate(scene_std, template, cv2.TM_SQDIFF)
+            min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+            if min_val < self._immediate_threshold:
+                # return immediately if immediate better than imm. threshold
+                return tuple(reversed(min_loc)), size
+            elif min_val < self._acceptable_threshold:
+                minloc_minval_size.append((min_loc, min_val, size))
+        # if any acceptable matches found, then return the best one
+        if minloc_minval_size:
+            best_loc, best_val, best_size_h_w = min(minloc_minval_size,
+                                                    key=lambda lvs: lvs[1])
+            best_loc_top_left = tuple(reversed(best_loc))
+            return best_loc_top_left, best_size_h_w
+        return None
 
     # helper methods
     def _standardize(self, img):

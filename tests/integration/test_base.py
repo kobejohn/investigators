@@ -47,9 +47,66 @@ class Test_ImageFinder(unittest.TestCase):
             size_spec = (rows, cols, bgr_channels)
             self.assertSequenceEqual(template.shape, size_spec)
 
-    # Searching for templates:
-    def test_locate_returns_l_after_all_comparisons_if_over_min_threshold(self):
-        raise NotImplementedError
+    # Locating templates in an image:
+    @patch.object(ImageFinder, '_standardize')
+    def test_locate_in_standardizes_the_scene_image(self, m_standardize):
+        m_standardize.return_value = generic_image(channels=3)  # some valid
+        # setup the image finder
+        template = generic_image(width=2, height=2)
+        imgf = ImageFinder(template, sizes=None)
+        # confirm standardize is called when analyzing a scene
+        scene = generic_image(width=10, height=10)
+        imgf._standardize(scene)
+        m_standardize.assert_called_with(scene)
+
+    def test_locate_returns_None_if_templates_not_found(self):
+        # setup a template and scene that should be guaranteed not to be matched
+        black_template = generic_image(width=2, height=2)
+        black_template.fill(0)
+        white_scene = generic_image(width=10, height=10)
+        white_scene.fill(255)
+        imgf = ImageFinder(black_template)
+        p = imgf.locate_in(white_scene)
+        self.assertIsNone(p)
+
+    def test_locate_returns_result_at_end_when_immediate_not_passed(self):
+        loc_spec = loc_top, loc_left = (20, 30)
+        size_spec = size_h, size_w = (100, 40)
+        black_template = generic_image(width=size_w, height=size_h)
+        black_template.fill(0)
+        white_scene = generic_image(width=size_w * 3, height=size_h * 3)
+        white_scene.fill(255)
+        # set a black square to match the template
+        white_scene[loc_top:loc_top + size_h,
+                    loc_left: loc_left + size_w] = 0
+        # setup an impossible "acceptable" threshold so it waits until end
+        imgf = ImageFinder(black_template,
+                           acceptable_threshold=0.1, immediate_threshold=-10)
+        loc_size = imgf.locate_in(white_scene)
+        self.assertIsNotNone(loc_size, 'Unexpectedly failed to return'
+                                       ' a result.')
+        loc, size = loc_size
+        self.assertEqual((loc, size), (loc_spec, size_spec))
+
+    def test_locate_returns_result_immediately_when_immediate_passes(self):
+        loc_spec = loc_top, loc_left = (20, 30)
+        size_spec = size_h, size_w = (100, 40)
+        black_template = generic_image(width=size_w, height=size_h)
+        black_template.fill(0)
+        white_scene = generic_image(width=size_w * 3, height=size_h * 3)
+        white_scene.fill(255)
+        # set a black square to match the template
+        white_scene[loc_top:loc_top + size_h,
+                    loc_left: loc_left + size_w] = 0
+        # setup an easy immediate_threshold
+        imgf = ImageFinder(black_template,
+                           acceptable_threshold=0.1, immediate_threshold=0.8)
+        loc_size = imgf.locate_in(white_scene)
+        self.assertIsNotNone(loc_size, 'Unexpectedly failed to return'
+                                       ' a result.')
+        loc, size = loc_size
+        self.assertEqual((loc, size), (loc_spec, size_spec))
+
     # Internal specifications
     def test__standardize_raises_TypeError_unless_bgr_bgra_or_gray(self):
         bgr = generic_image(channels=3)
