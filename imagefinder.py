@@ -1,5 +1,3 @@
-import random
-
 import numpy
 
 try:
@@ -96,11 +94,30 @@ class ImageFinder(object):
         """
         if mask is None:
             return img  # passthrough if no mask
-        #todo: below code works, but slowly
-        img_copy = numpy.copy(img)
-        positions_to_randomize = numpy.where(mask == 0)
-        for p in zip(positions_to_randomize[0], positions_to_randomize[1]):
-            img_copy[p] = random.randint(0, 255)
+        # outline:
+        #   1) prepare a single-channel mask
+        #   2) prepare a noise sequence to fill exactly the masked area
+        #   3) apply the noise to the masked area
+
+        #todo: if this works, then make a standardize_mask method again
+
+        # 1) prepare the mask
+        # get single-channel version
+        mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
+        # 2) prepare a noise image
+        # Credit to J.F. Sebastion on StackOverflow for the basis of the
+        # quick random noise generator:
+        # http://stackoverflow.com/a/5685025/377366
+        # 2) prepare a masked area-sized sequence of bgr noise
+        zeros = numpy.where(mask == 0)
+        amount_of_noise = len(zeros[0])  # x and y are in two arrays so pick one
+        channels = 3
+        noise = numpy.frombuffer(numpy.random.bytes(channels * amount_of_noise),
+                                 dtype=numpy.uint8)
+        noise = noise.reshape((-1, channels))
+        # 3) apply the noise to the masked positions
+        img_copy = img.copy()
+        img_copy[zeros] = noise
         return img_copy
 
     def _build_templates(self, image, sizes):
