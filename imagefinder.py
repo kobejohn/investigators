@@ -25,8 +25,9 @@ class ImageFinder(object):
         immediate_threshold: immediately return any match under this
         """
         standardized_img = self._standardize(base_template)
-        standardized_mask = mask
-        if not mask is None:
+        if mask is None:
+            standardized_mask = None
+        else:
             standardized_mask = self._standardize(mask)
         masked = self._mask(standardized_img, standardized_mask)
         self._templates = self._build_templates(masked, sizes)
