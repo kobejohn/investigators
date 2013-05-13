@@ -8,15 +8,23 @@ from imagefinder import ImageFinder
 
 class Test_ImageFinder(unittest.TestCase):
     # Initialization
-    @patch.object(ImageFinder, '_standardize')
-    def test___init___standardizes_image_and_mask(self, m_standardize):
-        m_standardize.return_value = generic_image(channels=3)  # some valid
+    @patch.object(ImageFinder, '_standardize_img')
+    def test___init___standardizes_image(self, m_standardize_img):
+        m_standardize_img.return_value = generic_image(channels=3)  # some valid
         img = generic_image()
         mask = generic_image()
         ImageFinder(img, mask=mask)
         # self.assertTrue(m_standardize.called)
-        m_standardize.assert_called_first_with(img)
-        m_standardize.assert_called_second_with(mask)
+        m_standardize_img.assert_called_with(img)
+
+    @patch.object(ImageFinder, '_standardize_mask')
+    def test___init___standardizes_mask(self, m_standardize_mask):
+        m_standardize_mask.return_value = generic_image(channels=None)  # valid
+        img = generic_image()
+        mask = generic_image()
+        ImageFinder(img, mask=mask)
+        # self.assertTrue(m_standardize.called)
+        m_standardize_mask.assert_called_with(mask)
 
     def test___init___stores_original_size_if_no_sizes_provided(self):
         h, w = size_key = 10, 10
@@ -48,16 +56,16 @@ class Test_ImageFinder(unittest.TestCase):
             self.assertSequenceEqual(template.shape, size_spec)
 
     # Locating templates in an image:
-    @patch.object(ImageFinder, '_standardize')
-    def test_locate_in_standardizes_the_scene_image(self, m_standardize):
-        m_standardize.return_value = generic_image(channels=3)  # some valid
+    @patch.object(ImageFinder, '_standardize_img')
+    def test_locate_in_standardizes_the_scene_image(self, m_standardize_img):
+        m_standardize_img.return_value = generic_image(channels=3)  # some valid
         # setup the image finder
         template = generic_image(width=2, height=2)
         imgf = ImageFinder(template, sizes=None)
         # confirm standardize is called when analyzing a scene
         scene = generic_image(width=10, height=10)
-        imgf._standardize(scene)
-        m_standardize.assert_called_with(scene)
+        imgf._standardize_img(scene)
+        m_standardize_img.assert_called_with(scene)
 
     def test_locate_returns_None_if_templates_not_found(self):
         # setup a template and scene that should be guaranteed not to be matched
@@ -108,7 +116,7 @@ class Test_ImageFinder(unittest.TestCase):
         self.assertEqual((loc, size), (loc_spec, size_spec))
 
     # Internal specifications
-    def test__standardize_raises_TypeError_unless_bgr_bgra_or_gray(self):
+    def test__standardize_img_mask_raise_TypeError_unless_bgr_bgra_or_gry(self):
         bgr = generic_image(channels=3)
         bgra = generic_image(channels=4)
         gray = generic_image(channels=None)
@@ -116,13 +124,12 @@ class Test_ImageFinder(unittest.TestCase):
         just_a_string = 'whut'
         # confirm the bad one fails
         imgf = generic_ImageFinder()
-        self.assertRaises(TypeError,
-                          imgf._standardize, unhandled_channel_count)
-        self.assertRaises(TypeError,
-                          imgf._standardize, just_a_string)
-        # confirm the valid ones don't fail
-        for ok_img in (bgr, bgra, gray):
-            imgf._standardize(ok_img)
+        for standardizer in (imgf._standardize_img, imgf._standardize_mask):
+            self.assertRaises(TypeError, standardizer, unhandled_channel_count)
+            self.assertRaises(TypeError, standardizer, just_a_string)
+            # confirm the valid ones don't fail
+            for ok_img in (bgr, bgra, gray):
+                standardizer(ok_img)
 
     def test__mask_puts_noise_on_masked_locations(self):
         size = h, w = 10, 10

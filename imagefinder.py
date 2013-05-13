@@ -22,11 +22,11 @@ class ImageFinder(object):
         acceptable_threshold: return best match under this after all templates
         immediate_threshold: immediately return any match under this
         """
-        standardized_img = self._standardize(base_template)
+        standardized_img = self._standardize_img(base_template)
         if mask is None:
             standardized_mask = None
         else:
-            standardized_mask = self._standardize(mask)
+            standardized_mask = self._standardize_mask(mask)
         masked = self._mask(standardized_img, standardized_mask)
         self._templates = self._build_templates(masked, sizes)
         self._acceptable_threshold = acceptable_threshold
@@ -42,7 +42,7 @@ class ImageFinder(object):
         Return:
         tuple of location (top, left) and size (height, width)
         """
-        scene_std = self._standardize(scene)
+        scene_std = self._standardize_img(scene)
         minloc_minval_size = list()
         for size, template in self._templates.items():
             # don't use normalized. don't want false matches
@@ -62,7 +62,7 @@ class ImageFinder(object):
         return None
 
     # helper methods
-    def _standardize(self, img):
+    def _standardize_img(self, img):
         """Convert valid img to numpy bgr or raise TypeError for invalid."""
         # get the channels
         try:
@@ -84,41 +84,58 @@ class ImageFinder(object):
             raise TypeError('Unexpected img type:\n{}'.format(img))
         return conversion_method(*args)
 
+    def _standardize_mask(self, mask):
+        """Convert valid mask to numpy single-channel and black/white."""
+        # get the channels
+        try:
+            actual_channels = mask.shape[2]
+        except IndexError:
+            actual_channels = None  # grayscale doesn't have the extra item
+        except AttributeError:
+            actual_channels = -1  # it's not an numpy img
+        # try to convert to opencv Gray
+        bgr = 3
+        bgra = 4
+        gray = None
+        convertor = {bgr: (cv2.cvtColor, (mask, cv2.COLOR_BGR2GRAY)),
+                     bgra: (cv2.cvtColor, (mask, cv2.COLOR_BGRA2GRAY)),
+                     gray: (lambda x: x.copy(), (mask,))}  # copy only
+        try:
+            conversion_method, args = convertor[actual_channels]
+        except KeyError:
+            raise TypeError('Unexpected mask type:\n{}'.format(mask))
+        converted = conversion_method(*args)
+        # threshold the mask to black/white
+        nonzeros = numpy.nonzero(converted)
+        converted[nonzeros] = 255  # max out the non-zeros
+        return converted
+
     def _mask(self, img, mask):
         """Mask the given image by applying random noise according to the mask.
 
         Arguments:
-        img: an opencv bgr image (numpy shape (h, w, 3))
+        img: an opencv bgr image (numpy shape (h, w, 3)). will be modified
         mask: an opencv single-channel image (numpy shape (h, w))
               with 0 for every pixel to be masked in img
+
+        Returns:
+        The original img object is modified and also returned
         """
         if mask is None:
             return img  # passthrough if no mask
-        # outline:
-        #   1) prepare a single-channel mask
-        #   2) prepare a noise sequence to fill exactly the masked area
-        #   3) apply the noise to the masked area
-
-        #todo: if this works, then make a standardize_mask method again
-
-        # 1) prepare the mask
-        # get single-channel version
-        mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
-        # 2) prepare a noise image
-        # Credit to J.F. Sebastion on StackOverflow for the basis of the
-        # quick random noise generator:
-        # http://stackoverflow.com/a/5685025/377366
-        # 2) prepare a masked area-sized sequence of bgr noise
+        # prepare a sequence of noise the same size as the masked area
+        #   Credit to J.F. Sebastion on StackOverflow for the basis of the
+        #   quick random noise generator:
+        #   http://stackoverflow.com/a/5685025/377366
         zeros = numpy.where(mask == 0)
         amount_of_noise = len(zeros[0])  # x and y are in two arrays so pick one
         channels = 3
         noise = numpy.frombuffer(numpy.random.bytes(channels * amount_of_noise),
                                  dtype=numpy.uint8)
         noise = noise.reshape((-1, channels))
-        # 3) apply the noise to the masked positions
-        img_copy = img.copy()
-        img_copy[zeros] = noise
-        return img_copy
+        # apply the noise to the masked positions
+        img[zeros] = noise
+        return img
 
     def _build_templates(self, image, sizes):
         """Make sized versions of the base image and store them in a dict."""
