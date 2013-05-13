@@ -77,7 +77,7 @@ class ImageFinder(object):
         bgr = 3
         bgra = 4
         gray = None
-        converters_and_args = {bgr: (lambda x: x, (img,)),  # passthrough
+        converters_and_args = {bgr: (lambda x: x.copy(), (img,)),  # copy only
                                bgra: (cv2.cvtColor, (img, cv2.COLOR_BGRA2BGR)),
                                gray: (cv2.cvtColor, (img, cv2.COLOR_GRAY2BGR))}
         try:
