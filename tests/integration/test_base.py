@@ -18,11 +18,11 @@ class Test_ImageFinder(unittest.TestCase):
         m_standardize.assert_called_first_with(img)
         m_standardize.assert_called_second_with(mask)
 
-    def test___init___stores_base_image_as_template_if_no_sizes_provided(self):
+    def test___init___stores_original_size_if_no_sizes_provided(self):
         h, w = size_key = 10, 10
         img = generic_image(width=w, height=h)
         imgf = ImageFinder(img)
-        self.assertIs(imgf._templates[size_key], imgf._base)
+        self.assertTrue(size_key in imgf._templates)
 
     @patch.object(ImageFinder, '_mask')
     def test___init___applies_an_optional_mask_to_image(self, m_mask):
