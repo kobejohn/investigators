@@ -24,13 +24,13 @@ class ImageFinder(object):
         try:
             actual_channels = img.shape[2]
         except IndexError:
-            actual_channels = 1  # grayscale doesn't have the extra item
+            actual_channels = None  # grayscale doesn't have the extra item
         except AttributeError:
-            actual_channels = None  # it's not an numpy img
+            actual_channels = -1  # it's not an numpy img
         # try to convert to opencv BGR
         bgr = 3
         bgra = 4
-        gray = 1
+        gray = None
         converters_and_args = {bgr: (lambda x: x, (img,)),  # passthrough
                                bgra: (cv2.cvtColor, (img, cv2.COLOR_BGRA2BGR)),
                                gray: (cv2.cvtColor, (img, cv2.COLOR_GRAY2BGR))}
@@ -50,15 +50,7 @@ class ImageFinder(object):
         """
         if mask is None:
             return img  # passthrough if no mask
-        # make a full size random image that will be combined with the image
-        # Thanks to J.F. Sebastion on StackOverflow for the basis of the
-        # quick random image generator:
-        # http://stackoverflow.com/a/5685025/377366
-        # h, w = mask.shape[:2]
-        # noise = numpy.frombuffer(numpy.random.bytes(h * w), dtype=numpy.uint8)
-        # noise.reshape(h, w)
-        # combine the noise with image naively
-        #todo: this works but is terribly inefficient
+        #todo: below code works, but slowly
         img_copy = numpy.copy(img)
         positions_to_randomize = numpy.where(mask == 0)
         for p in zip(positions_to_randomize[0], positions_to_randomize[1]):
