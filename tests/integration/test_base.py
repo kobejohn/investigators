@@ -89,11 +89,14 @@ class Test_ImageFinder(unittest.TestCase):
 def generic_ImageFinder(width=None, height=None, channels=None, sizes=None):
     img = generic_image(width=width, height=height, channels=channels)
     sizes = sizes or ((5, 5), (100, 100))
-    return ImageFinder(img, sizes)
+    return ImageFinder(img, sizes=sizes)
 
 
 def generic_image(width=None, height=None, channels=None):
     width = width or 4
     height = height or 3
-    channels = channels or 3
-    return numpy.zeros((height, width, channels), dtype=numpy.uint8)
+    if channels:
+        shape = (height, width, channels)
+    else:
+        shape = (height, width)
+    return numpy.zeros(shape, dtype=numpy.uint8)
