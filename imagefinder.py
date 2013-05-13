@@ -11,11 +11,29 @@ except ImportError:
 
 
 class ImageFinder(object):
-    def __init__(self, base_template, sizes=None, mask=None):
-        standardized = self._standardize(base_template)
-        masked = self._mask(standardized, mask)
-        self._base = masked
-        self._templates = self._build_templates(self._base, sizes)
+    def __init__(self, base_template, sizes=None, mask=None,
+                 acceptable_threshold=0.5,
+                 immediate_threshold=0.1):
+        """Create an image finder.
+
+        Arguments:
+        base_template: valid image. See _standardize for details
+        sizes: sequence of (height, width) tuples template will be resized to
+        mask: gray image matched height and width to base_template
+        thresholds (both): 0 to 1; lower is a harder threshold to match
+        acceptable_threshold: return best match under this after all templates
+        immediate_threshold: immediately return any match under this
+        """
+        standardized_img = self._standardize(base_template)
+        standardized_mask = mask
+        if not mask is None:
+            standardized_mask = self._standardize(mask)
+        masked = self._mask(standardized_img, standardized_mask)
+        self._templates = self._build_templates(masked, sizes)
+        self._acceptable_threshold = acceptable_threshold
+        self._immediate_threshold = immediate_threshold
+
+    def locate_in(self, scene):
 
     # helper methods
     def _standardize(self, img):
