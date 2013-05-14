@@ -51,6 +51,11 @@ class ImageFinder(object):
                 # skip if template too large. would cause ugly opencv error
                 continue
             result = cv2.matchTemplate(scene_std, template, cv2.TM_SQDIFF)
+            # for some reason TM_SQDIFF_NORMED does not behave well in tests
+            # so do a manual normalization (avoiding zero division error)
+            norm = numpy.max(result)
+            if norm:
+                result /= norm  # i.e. don't normalize if it's all zeros
             min_val, max_val, min_left_top, max_left_top = cv2.minMaxLoc(result)
             if min_val < self._immediate_threshold:
                 # return immediately if immediate better than imm. threshold
