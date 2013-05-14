@@ -19,6 +19,7 @@ lib
 lib64
 *.tar
 *.gz
+setup.cfg
 
 # Installer logs
 pip-log.txt

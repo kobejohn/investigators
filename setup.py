@@ -7,7 +7,7 @@ except ImportError:
 
 setup(
     name='imagefinder',
-    version='0.1.4.0',
+    version='0.1.4.1',
     py_modules=['imagefinder', 'distribute_setup'],
     install_requires=['numpy'],
     tests_require=['mock'],
