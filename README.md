@@ -3,8 +3,10 @@ ImageFinder
 
 Find one image within another.
 
-More specifically, this is optimized to prepare a template at multiple
-resolutions and then search a given scene for each of the sizes of the template.
+More specifically, this prepares a template at multiple resolutions and then
+searches a given scene for the template at each specified resolution. This
+means that you need to know the possible sizes of the template in the scenes
+ahead of time.
 
 I am using it specifcally to identify applications within a screenshot when
 the application may be at various resolutions.
