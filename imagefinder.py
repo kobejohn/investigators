@@ -43,22 +43,20 @@ class ImageFinder(object):
         tuple of location (top, left) and size (height, width)
         """
         scene_std = self._standardize_img(scene)
+        scene_h, scene_w = scene_std.shape[0:2]
         minloc_minval_size = list()
-        for size_h_w, template in self._templates.items():
-            result = cv2.matchTemplate(scene_std, template,
-                                       cv2.TM_SQDIFF)
-            # for some reason TM_SQDIFF_NORMED does not behave well
-            # so do a manual normalization to [0,1] range
-            h, w = size_h_w
-            # max difference^2 * 3 channels * image size
-            # max_sqdiff = (255 ** 2) * 3 * h * w
-            result /= numpy.max(result)
+        for template_h_w, template in self._templates.items():
+            template_h, template_w = template_h_w
+            if (template_h > scene_h) or (template_w > scene_w):
+                # skip if template too large. would cause ugly opencv error
+                continue
+            result = cv2.matchTemplate(scene_std, template, cv2.TM_SQDIFF)
             min_val, max_val, min_left_top, max_left_top = cv2.minMaxLoc(result)
             if min_val < self._immediate_threshold:
                 # return immediately if immediate better than imm. threshold
-                return tuple(reversed(min_left_top)), size_h_w
+                return tuple(reversed(min_left_top)), template_h_w
             elif min_val < self._acceptable_threshold:
-                minloc_minval_size.append((min_left_top, min_val, size_h_w))
+                minloc_minval_size.append((min_left_top, min_val, template_h_w))
         # if any acceptable matches found, then return the best one
         if minloc_minval_size:
             best_left_top, best_val, best_h_w = min(minloc_minval_size,

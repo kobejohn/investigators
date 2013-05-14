@@ -1,7 +1,7 @@
 import unittest
 
 from mock import patch
-import numpy
+import cv2, numpy
 
 from imagefinder import ImageFinder
 
@@ -114,6 +114,20 @@ class Test_ImageFinder(unittest.TestCase):
                                        ' a result.')
         loc, size = loc_size
         self.assertEqual((loc, size), (loc_spec, size_spec))
+
+    # patch with some random correlation result image
+    @patch.object(cv2, 'matchTemplate')
+    def test_locate_in_ignores_templates_too_big_for_the_scene(self, m_match):
+        m_match.return_value = generic_image(channels=None)  # for graceful fail
+        # setup an image finder with only a large size for template
+        large_h, large_w = 100, 200
+        imgf = generic_ImageFinder(sizes=((large_h, large_w),))
+        # setup a scene smaller than the large size template
+        small_h, small_w = large_h - 20, large_w - 20
+        small_scene = generic_image(height=small_h, width=small_w)
+        # confirm that matchTemplate is not called
+        imgf.locate_in(small_scene)
+        self.assertFalse(m_match.called)
 
     # Internal specifications
     def test__standardize_img_mask_raise_TypeError_unless_bgr_bgra_or_gry(self):
