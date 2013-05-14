@@ -27,7 +27,7 @@ class Test_ImageFinder(unittest.TestCase):
         m_standardize_mask.assert_called_with(mask)
 
     def test___init___stores_original_size_if_no_sizes_provided(self):
-        h, w = size_key = 10, 10
+        h, w = size_key = 20, 10
         img = generic_image(width=w, height=h)
         imgf = ImageFinder(img)
         self.assertTrue(size_key in imgf._templates)
@@ -55,7 +55,7 @@ class Test_ImageFinder(unittest.TestCase):
             size_spec = (rows, cols, bgr_channels)
             self.assertSequenceEqual(template.shape, size_spec)
 
-    # Locating templates in an image:
+    # Locating templates in a scene:
     @patch.object(ImageFinder, '_standardize_img')
     def test_locate_in_standardizes_the_scene_image(self, m_standardize_img):
         m_standardize_img.return_value = generic_image(channels=3)  # some valid
@@ -63,23 +63,23 @@ class Test_ImageFinder(unittest.TestCase):
         template = generic_image(width=2, height=2)
         imgf = ImageFinder(template, sizes=None)
         # confirm standardize is called when analyzing a scene
-        scene = generic_image(width=10, height=10)
+        scene = generic_image(width=100, height=100)
         imgf._standardize_img(scene)
         m_standardize_img.assert_called_with(scene)
 
-    def test_locate_returns_None_if_templates_not_found(self):
+    def test_locate_returns_None_if_no_internal_templates_found_in_scene(self):
         # setup a template and scene that should be guaranteed not to be matched
-        black_template = generic_image(width=2, height=2)
+        black_template = generic_image(width=10, height=5)
         black_template.fill(0)
-        white_scene = generic_image(width=10, height=10)
+        white_scene = generic_image(width=20, height=20)
         white_scene.fill(255)
         imgf = ImageFinder(black_template)
         p = imgf.locate_in(white_scene)
         self.assertIsNone(p)
 
     def test_locate_returns_result_at_end_when_immediate_not_passed(self):
-        loc_spec = loc_top, loc_left = (20, 30)
-        size_spec = size_h, size_w = (100, 40)
+        loc_spec = loc_top, loc_left = (2, 3)
+        size_spec = size_h, size_w = (5, 20)
         black_template = generic_image(width=size_w, height=size_h)
         black_template.fill(0)
         white_scene = generic_image(width=size_w * 3, height=size_h * 3)
@@ -87,9 +87,9 @@ class Test_ImageFinder(unittest.TestCase):
         # set a black square to match the template
         white_scene[loc_top:loc_top + size_h,
                     loc_left: loc_left + size_w] = 0
-        # setup an impossible "acceptable" threshold so it waits until end
+        # setup an impossible immediate threshold so it waits until end
         imgf = ImageFinder(black_template,
-                           acceptable_threshold=0.1, immediate_threshold=-10)
+                           acceptable_threshold=2, immediate_threshold=-10)
         loc_size = imgf.locate_in(white_scene)
         self.assertIsNotNone(loc_size, 'Unexpectedly failed to return'
                                        ' a result.')
@@ -97,8 +97,8 @@ class Test_ImageFinder(unittest.TestCase):
         self.assertEqual((loc, size), (loc_spec, size_spec))
 
     def test_locate_returns_result_immediately_when_immediate_passes(self):
-        loc_spec = loc_top, loc_left = (20, 30)
-        size_spec = size_h, size_w = (100, 40)
+        loc_spec = loc_top, loc_left = (2, 3)
+        size_spec = size_h, size_w = (5, 20)
         black_template = generic_image(width=size_w, height=size_h)
         black_template.fill(0)
         white_scene = generic_image(width=size_w * 3, height=size_h * 3)
@@ -106,9 +106,9 @@ class Test_ImageFinder(unittest.TestCase):
         # set a black square to match the template
         white_scene[loc_top:loc_top + size_h,
                     loc_left: loc_left + size_w] = 0
-        # setup an easy immediate_threshold
+        # setup an easy immediate_threshold and impossible acceptable threshold
         imgf = ImageFinder(black_template,
-                           acceptable_threshold=0.1, immediate_threshold=0.8)
+                           acceptable_threshold=-10, immediate_threshold=0.8)
         loc_size = imgf.locate_in(white_scene)
         self.assertIsNotNone(loc_size, 'Unexpectedly failed to return'
                                        ' a result.')
@@ -132,10 +132,10 @@ class Test_ImageFinder(unittest.TestCase):
                 standardizer(ok_img)
 
     def test__mask_puts_noise_on_masked_locations(self):
-        size = h, w = 10, 10
+        h, w = 20, 10
         # make a special white image with values over random range
         high_value = 1000
-        white = numpy.ndarray((h, w), dtype=numpy.uint16)
+        white = numpy.ndarray((h, w, 3), dtype=numpy.uint16)
         white.fill(high_value)
         # make a mask with zeros at specified positions
         mask = numpy.ndarray((h, w), dtype=numpy.uint8)
@@ -143,22 +143,24 @@ class Test_ImageFinder(unittest.TestCase):
         masked_positions = [(0, 0), (5, 5)]
         for p in masked_positions:
             mask[p] = 0
-        # make the image finder and confirm the internal image was masked
-        imgf = ImageFinder(white, mask=mask, sizes=None)
+        # use a generic image finder to test _mask
+        imgf = generic_ImageFinder()
+        masked_white = imgf._mask(white, mask)
         for p in masked_positions:
-            masked_pixel = imgf._templates[size][p]
-            self.assertFalse(numpy.all(masked_pixel == high_value))
+            masked_pixel = masked_white[p]
+            # confirm all noise pixels have been changed
+            self.assertTrue(numpy.all(masked_pixel != high_value))
 
 
 def generic_ImageFinder(width=None, height=None, channels=None, sizes=None):
     img = generic_image(width=width, height=height, channels=channels)
-    sizes = sizes or ((5, 5), (100, 100))
+    sizes = sizes or ((15, 20), (30, 40))
     return ImageFinder(img, sizes=sizes)
 
 
 def generic_image(width=None, height=None, channels=None):
-    width = width or 4
-    height = height or 3
+    height = height or 30
+    width = width or 40
     if channels:
         shape = (height, width, channels)
     else:
