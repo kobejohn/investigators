@@ -44,33 +44,39 @@ class ImageFinder(object):
         """
         scene_std = self._standardize_img(scene)
         minloc_minval_size = list()
-        for size, template in self._templates.items():
-            # don't use normalized. don't want false matches
-            result = cv2.matchTemplate(scene_std, template, cv2.TM_SQDIFF)
-            min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+        for size_h_w, template in self._templates.items():
+            result = cv2.matchTemplate(scene_std, template,
+                                       cv2.TM_SQDIFF)
+            # for some reason TM_SQDIFF_NORMED does not behave well
+            # so do a manual normalization to [0,1] range
+            h, w = size_h_w
+            # max difference^2 * 3 channels * image size
+            # max_sqdiff = (255 ** 2) * 3 * h * w
+            result /= numpy.max(result)
+            min_val, max_val, min_left_top, max_left_top = cv2.minMaxLoc(result)
             if min_val < self._immediate_threshold:
                 # return immediately if immediate better than imm. threshold
-                return tuple(reversed(min_loc)), size
+                return tuple(reversed(min_left_top)), size_h_w
             elif min_val < self._acceptable_threshold:
-                minloc_minval_size.append((min_loc, min_val, size))
+                minloc_minval_size.append((min_left_top, min_val, size_h_w))
         # if any acceptable matches found, then return the best one
         if minloc_minval_size:
-            best_loc, best_val, best_size_h_w = min(minloc_minval_size,
+            best_left_top, best_val, best_h_w = min(minloc_minval_size,
                                                     key=lambda lvs: lvs[1])
-            best_loc_top_left = tuple(reversed(best_loc))
-            return best_loc_top_left, best_size_h_w
+            best_top_left = tuple(reversed(best_left_top))
+            return best_top_left, best_h_w
         return None
 
     # helper methods
     def _standardize_img(self, img):
-        """Convert valid img to numpy bgr or raise TypeError for invalid."""
+        """Convert valid image to numpy bgr or raise TypeError for invalid."""
         # get the channels
         try:
             actual_channels = img.shape[2]
         except IndexError:
             actual_channels = None  # grayscale doesn't have the extra item
         except AttributeError:
-            actual_channels = -1  # it's not an numpy img
+            actual_channels = -1  # it's not an numpy image
         # try to convert to opencv BGR
         bgr = 3
         bgra = 4
@@ -81,7 +87,7 @@ class ImageFinder(object):
         try:
             conversion_method, args = converters_and_args[actual_channels]
         except KeyError:
-            raise TypeError('Unexpected img type:\n{}'.format(img))
+            raise TypeError('Unexpected image type:\n{}'.format(img))
         return conversion_method(*args)
 
     def _standardize_mask(self, mask):
@@ -92,7 +98,7 @@ class ImageFinder(object):
         except IndexError:
             actual_channels = None  # grayscale doesn't have the extra item
         except AttributeError:
-            actual_channels = -1  # it's not an numpy img
+            actual_channels = -1  # it's not an numpy image
         # try to convert to opencv Gray
         bgr = 3
         bgra = 4
@@ -145,7 +151,9 @@ class ImageFinder(object):
             sized_templates[image.shape[:2]] = image
         else:
             for size in sizes:
-                resized = cv2.resize(image, size, interpolation=cv2.INTER_AREA)
+                cv2_size = tuple(reversed(size))
+                resized = cv2.resize(image, cv2_size,
+                                     interpolation=cv2.INTER_AREA)
                 sized_templates[size] = resized
         return sized_templates
 
