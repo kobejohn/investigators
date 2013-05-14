@@ -1,11 +1,16 @@
-from distutils.core import setup
+import distribute_setup
+distribute_setup.use_setuptools()
+
+from setuptools import setup, find_packages
 
 setup(
-    name='ImageFinder',
+    name='imagefinder',
     version='0.1.1',
-    packages=['imagefinder'],
-    requires=['cv2', 'numpy'],
-    tests_require=['cv2', 'mock', 'numpy'],
+    py_modules=['imagefinder'],
+    install_requires=['numpy'],
+    tests_require=['mock'],
+    package_data={'': ['cv2.pyd', '*.png']},
+    include_package_data=True,
     url='http://github.com/kobejohn/ImageFinder',
     license='MIT',
     author='KobeJohn',
