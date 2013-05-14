@@ -14,8 +14,7 @@ class Test_ImageFinder(unittest.TestCase):
         img = generic_image()
         mask = generic_image()
         ImageFinder(img, mask=mask)
-        # self.assertTrue(m_standardize.called)
-        m_standardize_img.assert_called_with(img)
+        self.assertTrue(m_standardize_img.called_with(img))
 
     @patch.object(ImageFinder, '_standardize_mask')
     def test___init___standardizes_mask(self, m_standardize_mask):
@@ -23,8 +22,7 @@ class Test_ImageFinder(unittest.TestCase):
         img = generic_image()
         mask = generic_image()
         ImageFinder(img, mask=mask)
-        # self.assertTrue(m_standardize.called)
-        m_standardize_mask.assert_called_with(mask)
+        self.assertTrue(m_standardize_mask.called_with(mask))
 
     def test___init___stores_original_size_if_no_sizes_provided(self):
         h, w = size_key = 20, 10
@@ -38,8 +36,7 @@ class Test_ImageFinder(unittest.TestCase):
         img = generic_image()
         mask = generic_image()
         ImageFinder(img, mask=mask)
-        # self.assertTrue(m_standardize.called)
-        m_mask.assert_called()
+        self.assertTrue(m_mask.called)
 
     # Attributes and Sizing
     def test_internal_template_dict_keys_are_int_tuples_of_height_width(self):
@@ -65,7 +62,7 @@ class Test_ImageFinder(unittest.TestCase):
         # confirm standardize is called when analyzing a scene
         scene = generic_image(width=100, height=100)
         imgf._standardize_img(scene)
-        m_standardize_img.assert_called_with(scene)
+        self.assertTrue(m_standardize_img.called_with(scene))
 
     def test_locate_returns_None_if_no_internal_templates_found_in_scene(self):
         # setup a template and scene that should be guaranteed not to be matched
