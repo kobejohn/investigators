@@ -1,7 +1,8 @@
 import unittest
 
 from mock import patch
-import cv2, numpy
+import cv2
+import numpy
 
 from imagefinder import ImageFinder
 

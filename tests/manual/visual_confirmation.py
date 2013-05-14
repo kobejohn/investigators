@@ -15,18 +15,17 @@ imgf = ImageFinder(template, sizes=(small, smaller), mask=mask,
 # display the stored templates just to see how "masking" works
 cv2.imshow(str(small), imgf._templates[small])
 cv2.imshow(str(smaller), imgf._templates[smaller])
-cv2.waitKey()
-cv2.destroyAllWindows()
 
 # search for the template in a scene
 scene = cv2.imread('scene with similar image at 320x240.png')
 result = imgf.locate_in(scene)
 if not result:
     print 'Could not find the template in the scene at the given sizes.'
+    cv2.destroyAllWindows()
     sys.exit()
-(top, left), (height, width) = result
 
 # highlight the disocovered location and size in the original image
+(top, left), (height, width) = result
 cv2.rectangle(scene, (left, top), (left + width, top + height),
               (255, 0, 255), thickness=5)
 cv2.putText(scene, 'top left = ({}, {})'.format(top, left),
