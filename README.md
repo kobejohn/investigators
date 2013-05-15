@@ -1,61 +1,58 @@
 investigators
 ========
 
-Achieve sophisticated investigation of data by combining easy-to-use
+Achieve various investigations of data by combining easy-to-use
 investigator classes.
 
 For example:
 
 - TemplateFinder (find a template within an image)
-- ProportionalView (use proportions rather than pixels to get a view)
+- ProportionalRegion (use proportions rather than pixels to get a view)
 - Grid (split up an image into cells)
 - ImageIdentifier (identify a given image from a library of examples)
 
 Status
 ======
 
-TemplateFinder is working
+TemplateFinder: working
+ProportionalRegion: working
 
-Command Line Example for TemplateFinder (can be found in tests/manual)
+Command Line Example for currently working investigators
 ================
 
-    import sys
+This can be found in tests/manual/.
 
-    from investigators.visuals import cv2
-    from investigators.visuals import TemplateFinder
+    from investigators.visuals import cv2  # package includes a fallback cv2
+    from investigators.visuals import TemplateFinder, ProportionalRegion
 
-    # images are tough to test so it's nice to have a sanity check
-    # setup an image finder
-    template = cv2.imread('template 640x480.png')
-    mask = cv2.imread('template mask 640x480.png')
-    small, smaller = (240, 320), (120, 160)
-    imgf = TemplateFinder(template, sizes=(small, smaller), mask=mask,
+    # Show the starting screenshot
+    screenshot = cv2.imread('screenshot 1280x800, game 800x600.png')
+    cv2.imshow('screenshot', screenshot)
+
+    # Use TemplateFinder to locate and show an image of the game on the screen
+    game_template = cv2.imread('game 640x480.png')
+    game_mask = cv2.imread('game mask 640x480.png')
+    game_possible_sizes = (600, 800), (240, 320)
+    imgf = TemplateFinder(game_template, sizes=game_possible_sizes, mask=game_mask,
                           acceptable_threshold=0.5,
                           immediate_threshold=0.1)
+    game_top, game_left, game_bottom, game_right = imgf.locate_in(screenshot)
+    game = screenshot[game_top:game_bottom, game_left:game_right]
+    cv2.waitKey()
+    cv2.imshow('extracted game', game)
 
-    # display the stored templates just to see how "masking" works
-    cv2.imshow(str(small), imgf._templates[small])
-    cv2.imshow(str(smaller), imgf._templates[smaller])
+    # Use ProportionalRegion to isolate the board within the game
+    board_top_proportion = float(80) / 480  # these are just from inspection
+    board_left_proportion = float(135) / 640
+    board_bottom_proportion = float(450) / 480
+    board_right_proportion = float(504) / 640
+    pr = ProportionalRegion(board_top_proportion, board_left_proportion,
+                            board_bottom_proportion, board_right_proportion)
+    board_top, board_left, board_bottom, board_right = pr.region_in(game)
+    board = game[board_top:board_bottom, board_left:board_right]
+    cv2.waitKey()
+    cv2.imshow('extracted board', board)
 
-    # search for the template in a scene
-    scene = cv2.imread('scene with similar image at 320x240.png')
-    result = imgf.locate_in(scene)
-    if not result:
-        print 'Could not find the template in the scene at the given sizes.'
-        cv2.destroyAllWindows()
-        sys.exit()
-
-    # highlight the discovered boundaries and size in the original image
-    top, left, bottom, right = result
-    height, width = bottom - top, right - left
-    cv2.rectangle(scene, (left, top), (right, bottom),
-                  (255, 0, 255), thickness=5)
-    cv2.putText(scene,
-                'top, left, bottom, right: {}, {}, {}, {}'.format(top, left,
-                                                                  bottom, right),
-                (0, 30), 0, 0.5, (255, 0, 255))
-    cv2.putText(scene, 'height x width: {} x {}'.format(height, width),
-                (0, 60), 0, 0.5, (255, 0, 255))
-    cv2.imshow('discovered image', scene)
+    # clean up
     cv2.waitKey()
     cv2.destroyAllWindows()

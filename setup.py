@@ -18,7 +18,7 @@ setup(
     license='MIT',
     author='KobeJohn',
     author_email='niericentral@gmail.com',
-    description='Achieve sophisticated investigation of images by combining'
+    description='Achieve various investigations of data by combining'
                 ' easy-to-use investigator classes.',
     classifiers=[
         'Development Status :: 4 - Beta',
