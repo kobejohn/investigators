@@ -39,7 +39,7 @@ Command Line Example for TemplateFinder (can be found in tests/manual)
 
     # search for the template in a scene
     scene = cv2.imread('scene with similar image at 320x240.png')
-    result = imgf.locate(scene)
+    result = imgf.locate_in(scene)
     if not result:
         print 'Could not find the template in the scene at the given sizes.'
         cv2.destroyAllWindows()

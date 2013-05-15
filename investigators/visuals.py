@@ -31,7 +31,7 @@ class TemplateFinder(object):
         self.acceptable_threshold = acceptable_threshold
         self.immediate_threshold = immediate_threshold
 
-    def locate(self, scene):
+    def locate_in(self, scene):
         """Return the boundaries and image of the best template/size
         match in the scene.
 

@@ -74,7 +74,7 @@ class Test_TemplateFinder(unittest.TestCase):
         white_scene = generic_image(width=20, height=20)
         white_scene.fill(255)
         imgf = TemplateFinder(black_template)
-        p = imgf.locate(white_scene)
+        p = imgf.locate_in(white_scene)
         self.assertIsNone(p)
 
     def test_locate_returns_result_at_end_when_immediate_not_passed(self):
@@ -94,7 +94,7 @@ class Test_TemplateFinder(unittest.TestCase):
         imgf = TemplateFinder(black_template,
                               acceptable_threshold=always,
                               immediate_threshold=impossible)
-        borders = imgf.locate(white_scene)
+        borders = imgf.locate_in(white_scene)
         self.assertEqual(borders,
                          (top_spec, left_spec, bottom_spec, right_spec))
 
@@ -116,7 +116,7 @@ class Test_TemplateFinder(unittest.TestCase):
                               acceptable_threshold=impossible,
                               immediate_threshold=always)
         # confirm the result
-        borders = imgf.locate(white_scene)
+        borders = imgf.locate_in(white_scene)
         self.assertEqual(borders,
                          (top_spec, left_spec, bottom_spec, right_spec))
 
@@ -131,7 +131,7 @@ class Test_TemplateFinder(unittest.TestCase):
         small_h, small_w = large_h - 20, large_w - 20
         small_scene = generic_image(height=small_h, width=small_w)
         # confirm that matchTemplate is not called
-        imgf.locate(small_scene)
+        imgf.locate_in(small_scene)
         self.assertFalse(m_match.called)
 
     # Internal specifications
