@@ -8,6 +8,46 @@ except ImportError:
     from _cv2_win_fallback import cv2
 
 
+class ProportionalRegion(object):
+    def __init__(self, top, left, bottom, right):
+        """Arguments:
+        - top, left, bottom, right: each is a number in [0, 1] inclusive
+        """
+        self.proportions = top, left, bottom, right
+
+    # Explicit property to make setter testing easier (possible?)
+    def _get_proportions(self):
+        return self._proportions
+
+    def _set_proportions(self, (top, left, bottom, right)):
+        self._validate_proportions(top, left, bottom, right)
+        self._proportions = top, left, bottom, right
+
+    proportions = property(_get_proportions, _set_proportions)
+
+    def region_in(self, image):
+        """Return the border in pixels based on the stored proportions."""
+        h, w = image.shape[0:2]
+        top_proportion, left_proportion, bottom_proportion, right_proportion =\
+            self.proportions
+        top = int(round(h * top_proportion))
+        left = int(round(w * left_proportion))
+        bottom = int(round(h * bottom_proportion))
+        right = int(round(w * right_proportion))
+        return top, left, bottom, right
+
+    def _validate_proportions(self, top, left, bottom, right):
+        """Raise an error if the proportions don't seem valid."""
+        # ValueError if out of bounds
+        for border in (top, left, bottom, right):
+            if (border < 0) or (1 < border):
+                raise ValueError('Boundaries must be in the range [0, 1].')
+        # ValueError if opposing borders are the same or reversed
+        if (bottom <= top) or (right <= left):
+            raise ValueError('There should be a positive gap between'
+                             'both (bottom - top) and (right - left).')
+
+
 class TemplateFinder(object):
     def __init__(self, template, sizes=None, mask=None,
                  acceptable_threshold=0.5,
