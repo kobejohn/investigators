@@ -7,17 +7,7 @@ from investigators.visuals import cv2
 from investigators.visuals import TemplateFinder
 
 
-#todo: now for using ImageGrab.grab() + numpy.array(pil_img) + imagefinder to pull from the screen
-#todo: remove from pypi. just install locally
-
-# project: investigators
-# module: visuals
-# TemplateFinder --> TemplateExtractor
-
-
-
-
-class Test_ImageFinder(unittest.TestCase):
+class Test_TemplateFinder(unittest.TestCase):
     # Initialization
     @patch.object(TemplateFinder, '_standardize_image')
     def test___init___standardizes_image(self, m_standardize_img):
