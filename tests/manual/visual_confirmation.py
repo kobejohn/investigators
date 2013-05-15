@@ -1,14 +1,14 @@
 import sys
 
-from imagefinder import cv2  # replace this with your cv2 if you have it
-from imagefinder import ImageFinder
+from investigators.visuals import cv2  # replace this with your cv2 if you have it
+from investigators.visuals import TemplateFinder
 
 # images are tough to test so it's nice to have a sanity check
 # setup an image finder
 template = cv2.imread('template 640x480.png')
 mask = cv2.imread('template mask 640x480.png')
 small, smaller = (240, 320), (120, 160)
-imgf = ImageFinder(template, sizes=(small, smaller), mask=mask,
+imgf = TemplateFinder(template, sizes=(small, smaller), mask=mask,
                    acceptable_threshold=0.5,
                    immediate_threshold=0.1)
 
@@ -18,7 +18,7 @@ cv2.imshow(str(smaller), imgf._templates[smaller])
 
 # search for the template in a scene
 scene = cv2.imread('scene with similar image at 320x240.png')
-result = imgf.locate_in(scene)
+result = imgf.locate(scene)
 if not result:
     print 'Could not find the template in the scene at the given sizes.'
     cv2.destroyAllWindows()

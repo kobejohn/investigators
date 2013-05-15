@@ -8,45 +8,43 @@ except ImportError:
     from _cv2_win_fallback import cv2
 
 
-class ImageFinder(object):
-    def __init__(self, base_template, sizes=None, mask=None,
+class TemplateFinder(object):
+    def __init__(self, template, sizes=None, mask=None,
                  acceptable_threshold=0.5,
                  immediate_threshold=0.1):
-        """Create an image finder.
-
-        Arguments:
-        base_template: valid image. See _standardize for details
-        sizes: sequence of (height, width) tuples template will be resized to
-        mask: gray image matched height and width to base_template
-        thresholds (both): 0 to 1; lower is a harder threshold to match
-        acceptable_threshold: return best match under this after all templates
-        immediate_threshold: immediately return any match under this
         """
-        standardized_img = self._standardize_img(base_template)
+        Arguments:
+        - template: valid image. See _standardize for details
+        - sizes: sequence of (height, width) tuples template will be resized to
+        - mask: gray image matched height and width to template
+        - acceptable_threshold: return best match under this after all templates
+        - immediate_threshold: immediately return any match under this
+            both thresholds: 0 to 1; lower is a harder threshold to match
+        """
+        template_std = self._standardize_image(template)
         if mask is None:
-            standardized_mask = None
+            mask_std = None
         else:
-            standardized_mask = self._standardize_mask(mask)
-        masked = self._mask(standardized_img, standardized_mask)
+            mask_std = self._standardize_mask(mask)
+        masked = self._mask(template_std, mask_std)
         self._templates = self._build_templates(masked, sizes)
-        self._acceptable_threshold = acceptable_threshold
-        self._immediate_threshold = immediate_threshold
+        self.acceptable_threshold = acceptable_threshold
+        self.immediate_threshold = immediate_threshold
 
-    def locate_in(self, scene):
-        """Return the location and size of the best match in the scene from the
-         available internal templates.
+    def locate(self, scene):
+        """Return the boundaries and image of the best template/size
+        match in the scene.
 
         Arguments:
         scene_std: opencv (numpy) bgr, bgra or gray image.
 
         Return:
-        tuple of location (top, left) and size (height, width)
+        tuple of boundaries (top, left, bottom, right) and result image
         """
-        scene_std = self._standardize_img(scene)
+        scene_std = self._standardize_image(scene)
         scene_h, scene_w = scene_std.shape[0:2]
-        minloc_minval_size = list()
-        for template_h_w, template in self._templates.items():
-            template_h, template_w = template_h_w
+        matchvals_and_borders = list()
+        for (template_h, template_w), template in self._templates.items():
             if (template_h > scene_h) or (template_w > scene_w):
                 # skip if template too large. would cause ugly opencv error
                 continue
@@ -54,24 +52,28 @@ class ImageFinder(object):
             # for some reason TM_SQDIFF_NORMED does not behave well in tests
             # so do a manual normalization (avoiding zero division error)
             norm = numpy.max(result)
-            if norm:
-                result /= norm  # i.e. don't normalize if it's all zeros
-            min_val, max_val, min_left_top, max_left_top = cv2.minMaxLoc(result)
-            if min_val < self._immediate_threshold:
+            if norm:  # i.e. don't normalize if it's all zeros (divide by zero)
+                result /= norm
+            min_val, max_val, (min_left, min_top), max_left_top\
+                = cv2.minMaxLoc(result)
+            top, left = min_top, min_left
+            bottom, right = min_top + template_h, min_left + template_w
+            if min_val < self.immediate_threshold:
                 # return immediately if immediate better than imm. threshold
-                return tuple(reversed(min_left_top)), template_h_w
-            elif min_val < self._acceptable_threshold:
-                minloc_minval_size.append((min_left_top, min_val, template_h_w))
+                return top, left, bottom, right
+            elif min_val < self.acceptable_threshold:
+                matchvals_and_borders.append((min_val,
+                                              (top, left, bottom, right)))
         # if any acceptable matches found, then return the best one
-        if minloc_minval_size:
-            best_left_top, best_val, best_h_w = min(minloc_minval_size,
-                                                    key=lambda lvs: lvs[1])
-            best_top_left = tuple(reversed(best_left_top))
-            return best_top_left, best_h_w
+        if matchvals_and_borders:
+            match_val, (top, left, bottom, right) = min(matchvals_and_borders,
+                                                        key=lambda x: x[0])
+            return top, left, bottom, right
+        # explicitly satisfy specification to return None when failed
         return None
 
     # helper methods
-    def _standardize_img(self, img):
+    def _standardize_image(self, img):
         """Convert valid image to numpy bgr or raise TypeError for invalid."""
         # get the channels
         try:
@@ -119,19 +121,19 @@ class ImageFinder(object):
         converted[nonzeros] = 255  # max out the non-zeros
         return converted
 
-    def _mask(self, img, mask):
+    def _mask(self, image, mask):
         """Mask the given image by applying random noise according to the mask.
 
         Arguments:
-        img: an opencv bgr image (numpy shape (h, w, 3)). will be modified
+        image: an opencv bgr image (numpy shape (h, w, 3)). will be modified
         mask: an opencv single-channel image (numpy shape (h, w))
-              with 0 for every pixel to be masked in img
+              with 0 for every pixel to be masked in image
 
         Returns:
-        The original img object is modified and also returned
+        The original image object is modified and also returned
         """
         if mask is None:
-            return img  # passthrough if no mask
+            return image  # passthrough if no mask
         # prepare a sequence of noise the same size as the masked area
         #   Credit to J.F. Sebastion on StackOverflow for the basis of the
         #   quick random noise generator:
@@ -143,21 +145,25 @@ class ImageFinder(object):
                                  dtype=numpy.uint8)
         noise = noise.reshape((-1, channels))
         # apply the noise to the masked positions
-        img[zeros] = noise
-        return img
+        image[zeros] = noise
+        return image
 
-    def _build_templates(self, image, sizes):
-        """Make sized versions of the base image and store them in a dict."""
+    def _build_templates(self, image, height_widths):
+        """Make sized versions of the base image and store them in a dict.
+
+        Size keys are (height, width) tuples
+        """
         sized_templates = dict()
-        if not sizes:
-            # if no sizes provided, use the image directly as the template
-            sized_templates[image.shape[:2]] = image
+        if not height_widths:
+            # if no height_widths provided, use the original image size
+            h, w = image.shape[0:2]
+            sized_templates[(h, w)] = image
         else:
-            for size in sizes:
-                cv2_size = tuple(reversed(size))
+            for h, w in height_widths:
+                cv2_size = (w, h)  # reverse of numpy for cv2 coordinates
                 resized = cv2.resize(image, cv2_size,
                                      interpolation=cv2.INTER_AREA)
-                sized_templates[size] = resized
+                sized_templates[(h, w)] = resized
         return sized_templates
 
 
