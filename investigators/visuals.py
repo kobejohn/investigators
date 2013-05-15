@@ -53,7 +53,7 @@ class TemplateFinder(object):
             # so do a manual normalization (avoiding zero division error)
             norm = numpy.max(result)
             if norm:  # i.e. don't normalize if it's all zeros (divide by zero)
-                result /= norm
+                result /= float(norm)  # float just for paranoia
             min_val, max_val, (min_left, min_top), max_left_top\
                 = cv2.minMaxLoc(result)
             top, left = min_top, min_left
