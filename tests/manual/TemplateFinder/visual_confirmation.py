@@ -1,6 +1,6 @@
 import sys
 
-from investigators.visuals import cv2  # replace this with your cv2 if you have it
+from investigators.visuals import cv2
 from investigators.visuals import TemplateFinder
 
 # images are tough to test so it's nice to have a sanity check
@@ -9,8 +9,8 @@ template = cv2.imread('template 640x480.png')
 mask = cv2.imread('template mask 640x480.png')
 small, smaller = (240, 320), (120, 160)
 imgf = TemplateFinder(template, sizes=(small, smaller), mask=mask,
-                   acceptable_threshold=0.5,
-                   immediate_threshold=0.1)
+                      acceptable_threshold=0.5,
+                      immediate_threshold=0.1)
 
 # display the stored templates just to see how "masking" works
 cv2.imshow(str(small), imgf._templates[small])
@@ -24,14 +24,17 @@ if not result:
     cv2.destroyAllWindows()
     sys.exit()
 
-# highlight the disocovered location and size in the original image
-(top, left), (height, width) = result
-cv2.rectangle(scene, (left, top), (left + width, top + height),
+# highlight the discovered boundaries and size in the original image
+top, left, bottom, right = result
+height, width = bottom - top, right - left
+cv2.rectangle(scene, (left, top), (right, bottom),
               (255, 0, 255), thickness=5)
-cv2.putText(scene, 'top left = ({}, {})'.format(top, left),
-            (0, 30), 0, 1, (255, 0, 255))
-cv2.putText(scene, 'height width = ({} x {})'.format(height, width),
-            (0, 60), 0, 1, (255, 0, 255))
+cv2.putText(scene,
+            'top, left, bottom, right: {}, {}, {}, {}'.format(top, left,
+                                                              bottom, right),
+            (0, 30), 0, 0.5, (255, 0, 255))
+cv2.putText(scene, 'height x width: {} x {}'.format(height, width),
+            (0, 60), 0, 0.5, (255, 0, 255))
 cv2.imshow('discovered image', scene)
 cv2.waitKey()
 cv2.destroyAllWindows()
