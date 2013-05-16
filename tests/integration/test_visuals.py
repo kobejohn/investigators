@@ -12,9 +12,8 @@ class Test_ProportionalRegion(unittest.TestCase):
     # Initialization
     def test___init___sets_proportions(self):
         some_proportions = _generic_proportions()
-        with patch.object(ProportionalRegion, '_set_proportions') as m_set_p:
-            ProportionalRegion(some_proportions)
-        self.assertTrue(m_set_p.called_with(*some_proportions))
+        pr = ProportionalRegion(some_proportions)
+        self.assertEqual(pr.proportions, some_proportions)
 
     # Configuration
     def test_seting_proportions_validates_them(self):
@@ -23,7 +22,7 @@ class Test_ProportionalRegion(unittest.TestCase):
         pr = ProportionalRegion(some_proportions)
         with patch.object(visuals, '_validate_proportions') as m_validate:
             pr.proportions = other_proportions
-        self.assertTrue(m_validate.called_with(some_proportions))
+        m_validate.assert_called_with(other_proportions)
 
     # Returning the window
     def test_region_in_returns_correct_borders(self):
@@ -47,21 +46,21 @@ class Test_ProportionalRegion(unittest.TestCase):
 
 class Test_TemplateFinder(unittest.TestCase):
     # Initialization
-    @patch.object(TemplateFinder, '_standardize_image')
-    def test___init___standardizes_image(self, m_standardize_img):
-        m_standardize_img.return_value = _generic_image(channels=3)
+    def test___init___standardizes_image(self):
         img = _generic_image()
         mask = _generic_image()
-        TemplateFinder(img, mask=mask)
-        self.assertTrue(m_standardize_img.called_with(img))
+        with patch.object(TemplateFinder, '_standardize_image') as m_stdize:
+            m_stdize.return_value = _generic_image(channels=3)
+            TemplateFinder(img, mask=mask)
+        m_stdize.assert_called_with(img)
 
-    @patch.object(TemplateFinder, '_standardize_mask')
-    def test___init___standardizes_mask(self, m_standardize_mask):
-        m_standardize_mask.return_value = _generic_image(channels=None)  # valid
+    def test___init___standardizes_mask(self):
         img = _generic_image()
         mask = _generic_image()
-        TemplateFinder(img, mask=mask)
-        self.assertTrue(m_standardize_mask.called_with(mask))
+        with patch.object(TemplateFinder, '_standardize_mask') as m_stdize:
+            m_stdize.return_value = _generic_image(channels=None)
+            TemplateFinder(img, mask=mask)
+        m_stdize.assert_called_with(mask)
 
     def test___init___stores_original_size_if_no_sizes_provided(self):
         h, w = size_key = 20, 10
@@ -69,13 +68,13 @@ class Test_TemplateFinder(unittest.TestCase):
         imgf = TemplateFinder(img)
         self.assertTrue(size_key in imgf._templates)
 
-    @patch.object(TemplateFinder, '_mask')
-    def test___init___applies_an_optional_mask_to_image(self, m_mask):
-        m_mask.return_value = _generic_image(channels=3)  # some valid
+    def test___init___applies_an_optional_mask_to_image(self):
         img = _generic_image()
         mask = _generic_image()
-        TemplateFinder(img, mask=mask)
-        self.assertTrue(m_mask.called)
+        with patch.object(TemplateFinder, '_mask') as m_mask:
+            m_mask.return_value = _generic_image(channels=3)
+            TemplateFinder(img, mask=mask)
+        m_mask.assert_called()
 
     # Internal templates
     def test_internal_template_dict_keys_are_int_tuples_of_height_width(self):
@@ -94,16 +93,16 @@ class Test_TemplateFinder(unittest.TestCase):
             self.assertSequenceEqual(template.shape, size_spec)
 
     # Locating templates in a scene:
-    @patch.object(TemplateFinder, '_standardize_image')
-    def test_locate_in_standardizes_the_scene_image(self, m_standardize_img):
-        m_standardize_img.return_value = _generic_image(channels=3)
+    def test_locate_in_standardizes_the_scene_image(self):
         # setup the image finder
         template = _generic_image(height=2, width=2)
         imgf = TemplateFinder(template, sizes=None)
         # confirm standardize is called when analyzing a scene
         scene = _generic_image(height=100, width=100)
-        imgf._standardize_image(scene)
-        self.assertTrue(m_standardize_img.called_with(scene))
+        with patch.object(TemplateFinder, '_standardize_image') as m_stdize:
+            m_stdize.return_value = _generic_image(channels=3)
+            imgf._standardize_image(scene)
+        m_stdize.assert_called_with(scene)
 
     def test_locate_returns_None_if_no_internal_templates_found_in_scene(self):
         # setup a template and scene that should be guaranteed not to be matched
@@ -160,10 +159,7 @@ class Test_TemplateFinder(unittest.TestCase):
         self.assertEqual(borders,
                          (top_spec, left_spec, bottom_spec, right_spec))
 
-    # patch with some random correlation result image
-    @patch.object(cv2, 'matchTemplate')
-    def test_locate_in_ignores_templates_too_big_for_the_scene(self, m_match):
-        m_match.return_value = _generic_image(channels=None)
+    def test_locate_in_ignores_templates_too_big_for_the_scene(self):
         # setup an image finder with only a large size for template
         large_h, large_w = 100, 200
         imgf = self._generic_ImageFinder(sizes=((large_h, large_w),))
@@ -171,7 +167,9 @@ class Test_TemplateFinder(unittest.TestCase):
         small_h, small_w = large_h - 20, large_w - 20
         small_scene = _generic_image(height=small_h, width=small_w)
         # confirm that matchTemplate is not called
-        imgf.locate_in(small_scene)
+        with patch.object(cv2, 'matchTemplate') as m_match:
+            m_match.return_value = _generic_image(channels=None)
+            imgf.locate_in(small_scene)
         self.assertFalse(m_match.called)
 
     # Internal specifications
