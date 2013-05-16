@@ -22,8 +22,8 @@ board_top_proportion = float(80) / 480  # these are just from inspection
 board_left_proportion = float(135) / 640
 board_bottom_proportion = float(450) / 480
 board_right_proportion = float(504) / 640
-pr = ProportionalRegion(board_top_proportion, board_left_proportion,
-                        board_bottom_proportion, board_right_proportion)
+pr = ProportionalRegion((board_top_proportion, board_left_proportion,
+                        board_bottom_proportion, board_right_proportion))
 board_top, board_left, board_bottom, board_right = pr.region_in(game)
 board = game[board_top:board_bottom, board_left:board_right]
 cv2.waitKey()

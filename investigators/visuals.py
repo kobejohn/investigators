@@ -1,3 +1,5 @@
+from collections import namedtuple
+
 import numpy
 
 try:
@@ -9,19 +11,22 @@ except ImportError:
 
 
 class ProportionalRegion(object):
-    def __init__(self, top, left, bottom, right):
-        """Arguments:
-        - top, left, bottom, right: each is a number in [0, 1] inclusive
-        """
-        self.proportions = top, left, bottom, right
+    _TLBR = namedtuple('TLBR', ('top', 'left', 'bottom', 'right'))
 
-    # Explicit property to make setter testing easier (possible?)
+    def __init__(self, top_left_bottom_right_proportions):
+        """Arguments:
+        - top_left_bottom_right: tuple of proportions measured from the origin
+            (0, 0) at the top left corner of an image. [0, 1] inclusive
+        """
+        self.proportions = top_left_bottom_right_proportions
+
+    # Explicit property makes setter mocking easier (possible?) for testing
     def _get_proportions(self):
         return self._proportions
 
-    def _set_proportions(self, (top, left, bottom, right)):
-        self._validate_proportions(top, left, bottom, right)
-        self._proportions = top, left, bottom, right
+    def _set_proportions(self, tlbr_proportions):
+        self._validate_proportions(tlbr_proportions)
+        self._proportions = self._TLBR(*tlbr_proportions)
 
     proportions = property(_get_proportions, _set_proportions)
 
@@ -34,15 +39,16 @@ class ProportionalRegion(object):
         left = int(round(w * left_proportion))
         bottom = int(round(h * bottom_proportion))
         right = int(round(w * right_proportion))
-        return top, left, bottom, right
+        return self._TLBR(top, left, bottom, right)
 
-    def _validate_proportions(self, top, left, bottom, right):
+    def _validate_proportions(self, tlbr_proportions):
         """Raise an error if the proportions don't seem valid."""
         # ValueError if out of bounds
-        for border in (top, left, bottom, right):
+        for border in tlbr_proportions:
             if (border < 0) or (1 < border):
                 raise ValueError('Boundaries must be in the range [0, 1].')
         # ValueError if opposing borders are the same or reversed
+        top, left, bottom, right = tlbr_proportions
         if (bottom <= top) or (right <= left):
             raise ValueError('There should be a positive gap between'
                              'both (bottom - top) and (right - left).')

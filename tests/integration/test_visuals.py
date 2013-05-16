@@ -7,22 +7,19 @@ from investigators.visuals import cv2
 from investigators.visuals import ProportionalRegion, TemplateFinder
 
 
-#todo: convert lists of top left etc. to single named tuple
-
-
 class Test_ProportionalRegion(unittest.TestCase):
     # Initialization
     def test___init___sets_proportions(self):
         some_proportions = self._generic_proportions()
         with patch.object(ProportionalRegion, '_set_proportions') as m_set_p:
-            ProportionalRegion(*some_proportions)
+            ProportionalRegion(some_proportions)
         self.assertTrue(m_set_p.called_with(*some_proportions))
 
     # Configuration
     def test_seting_proportions_validates_them(self):
         some_proportions = self._generic_proportions(0, .1, .2, .3)
         other_proportions = self._generic_proportions(.4, .5, .6, .7)
-        pr = ProportionalRegion(*some_proportions)
+        pr = ProportionalRegion(some_proportions)
         with patch.object(pr, '_validate_proportions') as m_validate:
             pr.proportions = other_proportions
         self.assertTrue(m_validate.called_with(some_proportions))
@@ -32,8 +29,8 @@ class Test_ProportionalRegion(unittest.TestCase):
         v = 0.5
         left_right_same = self._generic_proportions(left=v, right=v)
         top_bottom_same = self._generic_proportions(top=v, bottom=v)
-        self.assertRaises(ValueError, ProportionalRegion, *left_right_same)
-        self.assertRaises(ValueError, ProportionalRegion, *top_bottom_same)
+        self.assertRaises(ValueError, ProportionalRegion, left_right_same)
+        self.assertRaises(ValueError, ProportionalRegion, top_bottom_same)
 
     def test__validate_proportions_raises_ValueError_if_borders_OOB(self):
         under_bound = -0.1
@@ -43,7 +40,7 @@ class Test_ProportionalRegion(unittest.TestCase):
         bottom_out = self._generic_proportions(bottom=over_bound)
         right_out = self._generic_proportions(right=over_bound)
         for out_of_bounds in (top_out, left_out, bottom_out, right_out):
-            self.assertRaises(ValueError, ProportionalRegion, *out_of_bounds)
+            self.assertRaises(ValueError, ProportionalRegion, out_of_bounds)
 
     # Returning the window
     def test_region_in_returns_correct_borders(self):
@@ -52,6 +49,7 @@ class Test_ProportionalRegion(unittest.TestCase):
         image = _generic_image(height=h, width=w)
         # specify the correct values for a given proportion set
         top_proportion, left_proportion, bottom_proportion, right_proportion =\
+            proportions =\
             self._generic_proportions()
         top_spec = int(round(h * top_proportion))
         left_spec = int(round(w * left_proportion))
@@ -59,8 +57,7 @@ class Test_ProportionalRegion(unittest.TestCase):
         right_spec = int(round(w * right_proportion))
         border_pixels_spec = top_spec, left_spec, bottom_spec, right_spec
         # confirm the calculation
-        pr = ProportionalRegion(top_proportion, left_proportion,
-                                bottom_proportion, right_proportion)
+        pr = ProportionalRegion(proportions)
         border_pixels = pr.region_in(image)
         self.assertEqual(border_pixels, border_pixels_spec)
 
