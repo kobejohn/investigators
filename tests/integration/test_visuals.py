@@ -3,6 +3,7 @@ import unittest
 from mock import patch
 import numpy
 
+from investigators import visuals
 from investigators.visuals import cv2
 from investigators.visuals import ProportionalRegion, TemplateFinder
 
@@ -10,35 +11,35 @@ from investigators.visuals import ProportionalRegion, TemplateFinder
 class Test_ProportionalRegion(unittest.TestCase):
     # Initialization
     def test___init___sets_proportions(self):
-        some_proportions = self._generic_proportions()
+        some_proportions = _generic_proportions()
         with patch.object(ProportionalRegion, '_set_proportions') as m_set_p:
             ProportionalRegion(some_proportions)
         self.assertTrue(m_set_p.called_with(*some_proportions))
 
     # Configuration
     def test_seting_proportions_validates_them(self):
-        some_proportions = self._generic_proportions(0, .1, .2, .3)
-        other_proportions = self._generic_proportions(.4, .5, .6, .7)
+        some_proportions = _generic_proportions(0, .1, .2, .3)
+        other_proportions = _generic_proportions(.4, .5, .6, .7)
         pr = ProportionalRegion(some_proportions)
-        with patch.object(pr, '_validate_proportions') as m_validate:
+        with patch.object(visuals, '_validate_proportions') as m_validate:
             pr.proportions = other_proportions
         self.assertTrue(m_validate.called_with(some_proportions))
 
     # Helper methods
     def test__validate_proportions_raises_ValueError_if_opp_borders_rvrsd(self):
         v = 0.5
-        left_right_same = self._generic_proportions(left=v, right=v)
-        top_bottom_same = self._generic_proportions(top=v, bottom=v)
+        left_right_same = _generic_proportions(left=v, right=v)
+        top_bottom_same = _generic_proportions(top=v, bottom=v)
         self.assertRaises(ValueError, ProportionalRegion, left_right_same)
         self.assertRaises(ValueError, ProportionalRegion, top_bottom_same)
 
     def test__validate_proportions_raises_ValueError_if_borders_OOB(self):
         under_bound = -0.1
         over_bound = 1.1
-        top_out = self._generic_proportions(top=under_bound)
-        left_out = self._generic_proportions(left=under_bound)
-        bottom_out = self._generic_proportions(bottom=over_bound)
-        right_out = self._generic_proportions(right=over_bound)
+        top_out = _generic_proportions(top=under_bound)
+        left_out = _generic_proportions(left=under_bound)
+        bottom_out = _generic_proportions(bottom=over_bound)
+        right_out = _generic_proportions(right=over_bound)
         for out_of_bounds in (top_out, left_out, bottom_out, right_out):
             self.assertRaises(ValueError, ProportionalRegion, out_of_bounds)
 
@@ -50,7 +51,7 @@ class Test_ProportionalRegion(unittest.TestCase):
         # specify the correct values for a given proportion set
         top_proportion, left_proportion, bottom_proportion, right_proportion =\
             proportions =\
-            self._generic_proportions()
+            _generic_proportions()
         top_spec = int(round(h * top_proportion))
         left_spec = int(round(w * left_proportion))
         bottom_spec = int(round(h * bottom_proportion))
@@ -60,14 +61,6 @@ class Test_ProportionalRegion(unittest.TestCase):
         pr = ProportionalRegion(proportions)
         border_pixels = pr.region_in(image)
         self.assertEqual(border_pixels, border_pixels_spec)
-
-    def _generic_proportions(self, top=None, left=None,
-                             bottom=None, right=None):
-        top = top if top is not None else 0.2
-        bottom = bottom if bottom is not None else 0.8
-        left = left if left is not None else 0.3
-        right = right if right is not None else 0.7
-        return top, left, bottom, right
 
 
 class Test_TemplateFinder(unittest.TestCase):
@@ -241,7 +234,7 @@ class Test_TemplateFinder(unittest.TestCase):
         sizes = sizes
         return TemplateFinder(img, sizes=sizes)
 
-
+# Helper factories
 def _generic_image(height=None, width=None, channels=None):
     height = height if not height is None else 30
     width = width if not width is None else 40
@@ -250,6 +243,14 @@ def _generic_image(height=None, width=None, channels=None):
     else:
         shape = (height, width)
     return numpy.zeros(shape, dtype=numpy.uint8)
+
+
+def _generic_proportions(top=None, left=None, bottom=None, right=None):
+    top = top if top is not None else 0.2
+    bottom = bottom if bottom is not None else 0.8
+    left = left if left is not None else 0.3
+    right = right if right is not None else 0.7
+    return top, left, bottom, right
 
 
 if __name__ == '__main__':

@@ -28,7 +28,7 @@ class ProportionalRegion(object):
         return self._proportions
 
     def _set_proportions(self, rectangle_proportions):
-        self._validate_proportions(rectangle_proportions)
+        _validate_proportions(rectangle_proportions)
         self._proportions = Rectangle(*rectangle_proportions)
 
     proportions = property(_get_proportions, _set_proportions)
@@ -44,19 +44,6 @@ class ProportionalRegion(object):
         bottom = int(round(h * bottom_proportion))
         right = int(round(w * right_proportion))
         return Rectangle(top, left, bottom, right)
-
-    # helper methods
-    def _validate_proportions(self, rectangle_proportions):
-        """Raise an error if the proportions don't seem valid."""
-        # ValueError if out of bounds
-        for border in rectangle_proportions:
-            if (border < 0) or (1 < border):
-                raise ValueError('Boundaries must be in the range [0, 1].')
-        # ValueError if opposing borders are the same or reversed
-        top, left, bottom, right = rectangle_proportions
-        if (bottom <= top) or (right <= left):
-            raise ValueError('There should be a positive gap between'
-                             'both (bottom - top) and (right - left).')
 
 
 class TemplateFinder(object):
@@ -215,6 +202,20 @@ class TemplateFinder(object):
                                      interpolation=cv2.INTER_AREA)
                 sized_templates[(h, w)] = resized
         return sized_templates
+
+
+# Helper functions
+def _validate_proportions(rectangle_proportions):
+    """Raise an error if the proportions will cause hard-to-trace errors."""
+    # ValueError if out of bounds
+    for border in rectangle_proportions:
+        if (border < 0) or (1 < border):
+            raise ValueError('Boundaries must be in the range [0, 1].')
+    # ValueError if opposing borders are the same or reversed
+    top, left, bottom, right = rectangle_proportions
+    if (bottom <= top) or (right <= left):
+        raise ValueError('There should be a positive gap between'
+                         'both (bottom - top) and (right - left).')
 
 
 if __name__ == '__main__':
