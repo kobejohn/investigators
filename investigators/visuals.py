@@ -10,26 +10,30 @@ except ImportError:
     from _cv2_win_fallback import cv2
 
 
-class ProportionalRegion(object):
-    _TLBR = namedtuple('TLBR', ('top', 'left', 'bottom', 'right'))
+Rectangle = namedtuple('Rectangle', ('top', 'left', 'bottom', 'right'))
 
-    def __init__(self, top_left_bottom_right_proportions):
+
+class ProportionalRegion(object):
+    def __init__(self, rectangle_proportions):
         """Arguments:
-        - top_left_bottom_right: tuple of proportions measured from the origin
-            (0, 0) at the top left corner of an image. [0, 1] inclusive
+        - rectangle_proportions: tuple of proportions measured from the origin
+            (0, 0) at the top left corner of an image.
+            Value is [0, 1]
+            Order of borders is as in Rectangle object
         """
-        self.proportions = top_left_bottom_right_proportions
+        self.proportions = rectangle_proportions
 
     # Explicit property makes setter mocking easier (possible?) for testing
     def _get_proportions(self):
         return self._proportions
 
-    def _set_proportions(self, tlbr_proportions):
-        self._validate_proportions(tlbr_proportions)
-        self._proportions = self._TLBR(*tlbr_proportions)
+    def _set_proportions(self, rectangle_proportions):
+        self._validate_proportions(rectangle_proportions)
+        self._proportions = Rectangle(*rectangle_proportions)
 
     proportions = property(_get_proportions, _set_proportions)
 
+    # main method
     def region_in(self, image):
         """Return the border in pixels based on the stored proportions."""
         h, w = image.shape[0:2]
@@ -39,16 +43,17 @@ class ProportionalRegion(object):
         left = int(round(w * left_proportion))
         bottom = int(round(h * bottom_proportion))
         right = int(round(w * right_proportion))
-        return self._TLBR(top, left, bottom, right)
+        return Rectangle(top, left, bottom, right)
 
-    def _validate_proportions(self, tlbr_proportions):
+    # helper methods
+    def _validate_proportions(self, rectangle_proportions):
         """Raise an error if the proportions don't seem valid."""
         # ValueError if out of bounds
-        for border in tlbr_proportions:
+        for border in rectangle_proportions:
             if (border < 0) or (1 < border):
                 raise ValueError('Boundaries must be in the range [0, 1].')
         # ValueError if opposing borders are the same or reversed
-        top, left, bottom, right = tlbr_proportions
+        top, left, bottom, right = rectangle_proportions
         if (bottom <= top) or (right <= left):
             raise ValueError('There should be a positive gap between'
                              'both (bottom - top) and (right - left).')
@@ -102,19 +107,18 @@ class TemplateFinder(object):
                 result /= float(norm)  # float just for paranoia
             min_val, max_val, (min_left, min_top), max_left_top\
                 = cv2.minMaxLoc(result)
-            top, left = min_top, min_left
             bottom, right = min_top + template_h, min_left + template_w
+            rectangle = Rectangle(min_top, min_left, bottom, right)
             if min_val < self.immediate_threshold:
                 # return immediately if immediate better than imm. threshold
-                return top, left, bottom, right
+                return rectangle
             elif min_val < self.acceptable_threshold:
-                matchvals_and_borders.append((min_val,
-                                              (top, left, bottom, right)))
+                matchvals_and_borders.append((min_val, rectangle))
         # if any acceptable matches found, then return the best one
         if matchvals_and_borders:
-            match_val, (top, left, bottom, right) = min(matchvals_and_borders,
-                                                        key=lambda x: x[0])
-            return top, left, bottom, right
+            match_val, rectangle = min(matchvals_and_borders,
+                                       key=lambda x: x[0])
+            return rectangle
         # explicitly satisfy specification to return None when failed
         return None
 
