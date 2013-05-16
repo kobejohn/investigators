@@ -25,24 +25,6 @@ class Test_ProportionalRegion(unittest.TestCase):
             pr.proportions = other_proportions
         self.assertTrue(m_validate.called_with(some_proportions))
 
-    # Helper methods
-    def test__validate_proportions_raises_ValueError_if_opp_borders_rvrsd(self):
-        v = 0.5
-        left_right_same = _generic_proportions(left=v, right=v)
-        top_bottom_same = _generic_proportions(top=v, bottom=v)
-        self.assertRaises(ValueError, ProportionalRegion, left_right_same)
-        self.assertRaises(ValueError, ProportionalRegion, top_bottom_same)
-
-    def test__validate_proportions_raises_ValueError_if_borders_OOB(self):
-        under_bound = -0.1
-        over_bound = 1.1
-        top_out = _generic_proportions(top=under_bound)
-        left_out = _generic_proportions(left=under_bound)
-        bottom_out = _generic_proportions(bottom=over_bound)
-        right_out = _generic_proportions(right=over_bound)
-        for out_of_bounds in (top_out, left_out, bottom_out, right_out):
-            self.assertRaises(ValueError, ProportionalRegion, out_of_bounds)
-
     # Returning the window
     def test_region_in_returns_correct_borders(self):
         # create an image to work with
@@ -233,6 +215,29 @@ class Test_TemplateFinder(unittest.TestCase):
         img = _generic_image(height=height, width=width, channels=channels)
         sizes = sizes
         return TemplateFinder(img, sizes=sizes)
+
+
+class Test_Helpers(unittest.TestCase):
+    def test__validate_proportions_raises_ValueError_if_opp_borders_rvrsd(self):
+        v = 0.5
+        left_right_same = _generic_proportions(left=v, right=v)
+        top_bottom_same = _generic_proportions(top=v, bottom=v)
+        self.assertRaises(ValueError,
+                          visuals._validate_proportions, left_right_same)
+        self.assertRaises(ValueError,
+                          visuals._validate_proportions, top_bottom_same)
+
+    def test__validate_proportions_raises_ValueError_if_borders_OOB(self):
+        under_bound = -0.1
+        over_bound = 1.1
+        top_out = _generic_proportions(top=under_bound)
+        left_out = _generic_proportions(left=under_bound)
+        bottom_out = _generic_proportions(bottom=over_bound)
+        right_out = _generic_proportions(right=over_bound)
+        for out_of_bounds in (top_out, left_out, bottom_out, right_out):
+            self.assertRaises(ValueError,
+                              visuals._validate_proportions, out_of_bounds)
+
 
 # Helper factories
 def _generic_image(height=None, width=None, channels=None):
