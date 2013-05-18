@@ -23,7 +23,7 @@ Command Line Example for currently working investigators
 This can be found in tests/manual/.
 
     from investigators.visuals import cv2  # package includes a fallback cv2
-    from investigators.visuals import TemplateFinder, ProportionalRegion
+    from investigators.visuals import TemplateFinder, ProportionalRegion, Grid
 
     # Show the starting screenshot
     screenshot = cv2.imread('screenshot 1280x800, game 800x600.png')
@@ -46,16 +46,29 @@ This can be found in tests/manual/.
     board_left_proportion = float(135) / 640
     board_bottom_proportion = float(450) / 480
     board_right_proportion = float(504) / 640
-    pr = ProportionalRegion(board_top_proportion, board_left_proportion,
-                            board_bottom_proportion, board_right_proportion)
+    pr = ProportionalRegion((board_top_proportion, board_left_proportion,
+                            board_bottom_proportion, board_right_proportion))
     board_top, board_left, board_bottom, board_right = pr.region_in(game)
     board = game[board_top:board_bottom, board_left:board_right]
     cv2.waitKey()
     cv2.imshow('extracted board', board)
 
+    # Use Grid to split the grid into image cells. display only first four
+    board_dimensions = 8, 8
+    tile_padding = (0.1, 0.1, 0.1, 0.1)
+    grid = Grid(board_dimensions, tile_padding)
+    for grid_p, cell_borders in grid.borders_by_grid_position(board):
+        if grid_p in ((0, 0), (0, 1), (0, 2), (0, 3)):
+            top, left, bottom, right = (cell_borders.top, cell_borders.left,
+                                        cell_borders.bottom, cell_borders.right)
+            cv2.waitKey()
+            cv2.imshow(str(grid_p), board[top:bottom, left:right])
+
     # clean up
     cv2.waitKey()
     cv2.destroyAllWindows()
+
+
 
 License
 =======
