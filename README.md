@@ -56,3 +56,7 @@ This can be found in tests/manual/.
     # clean up
     cv2.waitKey()
     cv2.destroyAllWindows()
+
+License
+=======
+MIT. See LICENSE
