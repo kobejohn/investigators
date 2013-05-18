@@ -8,10 +8,6 @@ from investigators.visuals import cv2
 from investigators.visuals import ProportionalRegion, TemplateFinder, Grid
 
 
-class Test_ImageIdentifier(unittest.TestCase):
-    pass # same as below
-
-
 class Test_Grid(unittest.TestCase):
     # Initialization
     def test___init___sets_grid_dimensions(self):
@@ -262,7 +258,7 @@ class Test_TemplateFinder(unittest.TestCase):
         self.assertFalse(m_match.called)
 
     # Internal specifications
-    def test__standardize_img_mask_raise_TypeError_unless_bgr_bgra_or_gry(self):
+    def test__standardize_mask_raise_TypeError_unless_bgr_bgra_or_gry(self):
         bgr = _generic_image(channels=3)
         bgra = _generic_image(channels=4)
         gray = _generic_image(channels=None)
@@ -270,12 +266,13 @@ class Test_TemplateFinder(unittest.TestCase):
         just_a_string = 'whut'
         # confirm the bad one fails
         imgf = self._generic_ImageFinder()
-        for standardizer in (imgf._standardize_image, imgf._standardize_mask):
-            self.assertRaises(TypeError, standardizer, unhandled_channel_count)
-            self.assertRaises(TypeError, standardizer, just_a_string)
-            # confirm the valid ones don't fail
-            for ok_img in (bgr, bgra, gray):
-                standardizer(ok_img)
+        self.assertRaises(TypeError, imgf._standardize_mask,
+                          unhandled_channel_count)
+        self.assertRaises(TypeError, imgf._standardize_mask,
+                          just_a_string)
+        # confirm the valid ones don't fail
+        for ok_img in (bgr, bgra, gray):
+            imgf._standardize_mask(ok_img)
 
     def test__mask_puts_noise_on_masked_locations(self):
         h, w = 20, 10
@@ -333,6 +330,22 @@ class Test_Helpers(unittest.TestCase):
         self.assertRaises(ValueError, visuals._validate_dimensions, zero)
         self.assertRaises(ValueError, visuals._validate_dimensions, negative)
 
+    def test__standardize_image_raise_TypeError_unless_bgr_bgra_or_gry(self):
+        bgr = _generic_image(channels=3)
+        bgra = _generic_image(channels=4)
+        gray = _generic_image(channels=None)
+        unhandled_channel_count = _generic_image(channels=2)
+        just_a_string = 'whut'
+        # confirm the bad one fails
+        imgf = self._generic_ImageFinder()
+        self.assertRaises(TypeError, visuals._standardize_image,
+                          unhandled_channel_count)
+        self.assertRaises(TypeError, visuals._standardize_image,
+                          just_a_string)
+        # confirm the valid ones don't fail
+        for ok_img in (bgr, bgra, gray):
+            visuals._standardize_image(ok_img)
+
 
 # Helper factories
 def _generic_image(height=None, width=None, channels=None):
@@ -351,6 +364,7 @@ def _generic_proportions(top=None, left=None, bottom=None, right=None):
     left = left if left is not None else 0.3
     right = right if right is not None else 0.7
     return top, left, bottom, right
+
 
 def _generic_dimensions(rows=None, cols=None):
     rows = rows if rows is not None else 5

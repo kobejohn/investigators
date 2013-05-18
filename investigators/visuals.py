@@ -122,7 +122,7 @@ class TemplateFinder(object):
         - immediate_threshold: immediately return any match under this
             both thresholds: 0 to 1; lower is a harder threshold to match
         """
-        template_std = self._standardize_image(template)
+        template_std = _standardize_image(template)
         if mask is None:
             mask_std = None
         else:
@@ -142,7 +142,7 @@ class TemplateFinder(object):
         Return:
         tuple of boundaries (top, left, bottom, right) and result image
         """
-        scene_std = self._standardize_image(scene)
+        scene_std = _standardize_image(scene)
         scene_h, scene_w = scene_std.shape[0:2]
         matchvals_and_borders = list()
         for (template_h, template_w), template in self._templates.items():
@@ -173,28 +173,6 @@ class TemplateFinder(object):
         return None
 
     # helper methods
-    def _standardize_image(self, img):
-        """Convert valid image to numpy bgr or raise TypeError for invalid."""
-        # get the channels
-        try:
-            actual_channels = img.shape[2]
-        except IndexError:
-            actual_channels = None  # grayscale doesn't have the extra item
-        except AttributeError:
-            actual_channels = -1  # it's not an numpy image
-        # try to convert to opencv BGR
-        bgr = 3
-        bgra = 4
-        gray = None
-        converters_and_args = {bgr: (lambda x: x.copy(), (img,)),  # copy only
-                               bgra: (cv2.cvtColor, (img, cv2.COLOR_BGRA2BGR)),
-                               gray: (cv2.cvtColor, (img, cv2.COLOR_GRAY2BGR))}
-        try:
-            conversion_method, args = converters_and_args[actual_channels]
-        except KeyError:
-            raise TypeError('Unexpected image type:\n{}'.format(img))
-        return conversion_method(*args)
-
     def _standardize_mask(self, mask):
         """Convert valid mask to numpy single-channel and black/white."""
         # get the channels
@@ -287,6 +265,29 @@ def _validate_dimensions(dimensions):
     for dim in dimensions:
         if dim < 1:
             raise ValueError('Dimensions should be greater than or equal to 1.')
+
+
+def _standardize_image(img):
+    """Convert valid image to numpy bgr or raise TypeError for invalid."""
+    # get the channels
+    try:
+        actual_channels = img.shape[2]
+    except IndexError:
+        actual_channels = None  # grayscale doesn't have the extra item
+    except AttributeError:
+        actual_channels = -1  # it's not an numpy image
+    # try to convert to opencv BGR
+    bgr = 3
+    bgra = 4
+    gray = None
+    converters_and_args = {bgr: (lambda x: x.copy(), (img,)),  # copy only
+                           bgra: (cv2.cvtColor, (img, cv2.COLOR_BGRA2BGR)),
+                           gray: (cv2.cvtColor, (img, cv2.COLOR_GRAY2BGR))}
+    try:
+        conversion_method, args = converters_and_args[actual_channels]
+    except KeyError:
+        raise TypeError('Unexpected image type:\n{}'.format(img))
+    return conversion_method(*args)
 
 
 if __name__ == '__main__':
