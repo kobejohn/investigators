@@ -18,8 +18,8 @@ class Grid(object):
     def __init__(self, dimensions, cell_padding):
         """Arguments:
         - dimensions: (rows, columns) for the grid. Each value is >= 1
-        - cell_padding: (top, left, bottom, right) proportions measured
-            from (0, 0) at the top left corner of an image.
+        - cell_padding: (top, left, bottom, right) proportion to crop
+            from each border
             Each value is [0, 1]
         """
         self.dimensions = dimensions
@@ -39,9 +39,12 @@ class Grid(object):
     def _get_cell_padding(self):
         return self._cell_padding
 
-    def _set_cell_padding(self, rectangle_proportions):
-        _validate_proportions(rectangle_proportions)
-        self._cell_padding = Rectangle(*rectangle_proportions)
+    def _set_cell_padding(self, padding):
+        # convert to relative window instead of the size from each border
+        top, left, bottom, right = padding
+        self._padded_cell = Rectangle(top, left, 1-bottom, 1-top)
+        _validate_proportions(self._padded_cell)
+        self._cell_padding = Rectangle(*padding)
 
     cell_padding = property(_get_cell_padding, _set_cell_padding)
 
@@ -59,16 +62,16 @@ class Grid(object):
         row_step = float(h) / rows
         col_step = float(w) / cols
         # float padding
-        padding_top = row_step * self._cell_padding.top
-        padding_bottom = row_step * self._cell_padding.bottom
-        padding_left = col_step * self._cell_padding.left
-        padding_right = col_step * self._cell_padding.right
+        padded_cell_top = row_step * self._padded_cell.top
+        padded_cell_bottom = row_step * self._padded_cell.bottom
+        padded_cell_left = col_step * self._padded_cell.left
+        padded_cell_right = col_step * self._padded_cell.right
         for row in range(rows):
             for col in range(cols):
-                top = int(round(row * row_step + padding_top))
-                left = int(round(col * col_step + padding_left))
-                bottom = int(round((row + 1) * row_step - padding_bottom))
-                right = int(round((col + 1) * col_step - padding_right))
+                top = int(round(row * row_step + padded_cell_top))
+                left = int(round(col * col_step + padded_cell_left))
+                bottom = int(round(row * row_step + padded_cell_bottom))
+                right = int(round(col * col_step + padded_cell_right))
                 grid_position = row, col
                 cell_borders = Rectangle(top, left, bottom, right)
                 yield grid_position, cell_borders

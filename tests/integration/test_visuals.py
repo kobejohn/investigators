@@ -8,6 +8,10 @@ from investigators.visuals import cv2
 from investigators.visuals import ProportionalRegion, TemplateFinder, Grid
 
 
+class Test_ImageIdentifier(unittest.TestCase):
+    pass # same as below
+
+
 class Test_Grid(unittest.TestCase):
     # Initialization
     def test___init___sets_grid_dimensions(self):
