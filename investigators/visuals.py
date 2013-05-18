@@ -11,15 +11,75 @@ except ImportError:
 
 
 Rectangle = namedtuple('Rectangle', ('top', 'left', 'bottom', 'right'))
+Dimensions = namedtuple('Dimensions', ('rows', 'columns'))
+
+
+class Grid(object):
+    def __init__(self, dimensions, cell_padding):
+        """Arguments:
+        - dimensions: (rows, columns) for the grid. Each value is >= 1
+        - cell_padding: (top, left, bottom, right) proportions measured
+            from (0, 0) at the top left corner of an image.
+            Each value is [0, 1]
+        """
+        self.dimensions = dimensions
+        self.cell_padding = cell_padding
+
+    # Explicit property makes setter mocking easier (possible?) for testing
+    def _get_dimensions(self):
+        return self._dimensions
+
+    def _set_dimensions(self, dimensions):
+        _validate_dimensions(dimensions)
+        self._dimensions = Dimensions(*dimensions)
+
+    dimensions = property(_get_dimensions, _set_dimensions)
+
+    # Explicit property makes setter mocking easier (possible?) for testing
+    def _get_cell_padding(self):
+        return self._cell_padding
+
+    def _set_cell_padding(self, rectangle_proportions):
+        _validate_proportions(rectangle_proportions)
+        self._cell_padding = Rectangle(*rectangle_proportions)
+
+    cell_padding = property(_get_cell_padding, _set_cell_padding)
+
+    # main method
+    def borders_by_grid_position(self, image):
+        """Generate a sequence of tuples of:
+            - relative grid positions (according to the grid dimensions)
+            - pixel borders (according to the original image).
+        """
+        # pre-calculate step and padding values
+        rows = self._dimensions.rows
+        cols = self._dimensions.columns
+        h, w = image.shape[0:2]
+        # float steps
+        row_step = float(h) / rows
+        col_step = float(w) / cols
+        # float padding
+        padding_top = row_step * self._cell_padding.top
+        padding_bottom = row_step * self._cell_padding.bottom
+        padding_left = col_step * self._cell_padding.left
+        padding_right = col_step * self._cell_padding.right
+        for row in range(rows):
+            for col in range(cols):
+                top = int(round(row * row_step + padding_top))
+                left = int(round(col * col_step + padding_left))
+                bottom = int(round((row + 1) * row_step - padding_bottom))
+                right = int(round((col + 1) * col_step - padding_right))
+                grid_position = row, col
+                cell_borders = Rectangle(top, left, bottom, right)
+                yield grid_position, cell_borders
 
 
 class ProportionalRegion(object):
     def __init__(self, rectangle_proportions):
         """Arguments:
-        - rectangle_proportions: tuple of proportions measured from the origin
-            (0, 0) at the top left corner of an image.
-            Value is [0, 1]
-            Order of borders is as in Rectangle object
+        - rectangle_proportions: (top, left, bottom, right) proportions measured
+            from (0, 0) at the top left corner of an image.
+            Each value is [0, 1]
         """
         self.proportions = rectangle_proportions
 
@@ -216,6 +276,14 @@ def _validate_proportions(rectangle_proportions):
     if (bottom <= top) or (right <= left):
         raise ValueError('There should be a positive gap between'
                          'both (bottom - top) and (right - left).')
+
+
+def _validate_dimensions(dimensions):
+    """Raise an error if the dimensions will cause hard-to-trace errors."""
+    # ValueError if any dimension is < 1
+    for dim in dimensions:
+        if dim < 1:
+            raise ValueError('Dimensions should be greater than or equal to 1.')
 
 
 if __name__ == '__main__':

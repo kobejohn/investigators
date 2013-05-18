@@ -5,7 +5,92 @@ import numpy
 
 from investigators import visuals
 from investigators.visuals import cv2
-from investigators.visuals import ProportionalRegion, TemplateFinder
+from investigators.visuals import ProportionalRegion, TemplateFinder, Grid
+
+
+class Test_Grid(unittest.TestCase):
+    # Initialization
+    def test___init___sets_grid_dimensions(self):
+        some_dimensions = _generic_dimensions()
+        g = self._generic_grid(dimensions=some_dimensions)
+        self.assertEqual(g.dimensions, some_dimensions)
+
+    def test___init___sets_cell_padding(self):
+        some_proportions = _generic_proportions()
+        g = self._generic_grid(cell_padding=some_proportions)
+        self.assertEqual(g.cell_padding, some_proportions)
+
+    # Configuration
+    def test_setting_dimensions_validates_them(self):
+        some_dimensions = (5, 7)
+        other_dimensions = (11, 13)
+        g = self._generic_grid(dimensions=some_dimensions)
+        with patch.object(visuals, '_validate_dimensions') as m_validate:
+            g.dimensions = other_dimensions
+        m_validate.assert_called_with(other_dimensions)
+
+    def test_seting_cell_padding_validates_the_proportions(self):
+        some_proportions = (0, .1, .2, .3)
+        other_proportions = (.4, .5, .6, .7)
+        g = self._generic_grid(cell_padding=some_proportions)
+        with patch.object(visuals, '_validate_proportions') as m_validate:
+            g.cell_padding = other_proportions
+        m_validate.assert_called_with(other_proportions)
+
+    # Splitting an image into a grid
+    def test_gridify_generates_correct_sequence_of_borders(self):
+        # get the test image which is constructed as follows:
+        from os import path
+        this_path = path.abspath(path.split(__file__)[0])
+        grid_image_path = path.join(this_path,
+                                    'grid (tlbr padding - 1, 2, 3, 4).png')
+        grid_image = cv2.imread(grid_image_path)
+        self.assertIsNotNone(grid_image)  # just confirm file loaded
+        # 4 rows, 2 columns
+        dimensions = (4, 2)
+        # (top, left, bottom, right) padding:
+        #   = (1px, 2px, 3px, 4px)
+        #   = (1/5, 2/10, 3/5, 4/10)
+        #   = (0.2, 0.2, 0.6, 0.4)
+        cell_padding = 0.2, 0.2, 0.6, 0.4
+        #   ==> remaining cell image shape is 1 row, 4 columns (3 channels)
+        channels = 3
+        cell_shape_spec = (1, 4, channels)  # 1 row, 4 columns, 3 channels
+        # ==> content of each cell image should be exactly the colored parts
+        #     in the image as follows:
+        red = (0, 0, 255)
+        green = (0, 255, 0)
+        blue = (255, 0, 0)
+        white = (255, 255, 255)
+        colors_spec = [[red, white],
+                       [green, red],
+                       [blue, green],
+                       [white, blue]]
+        colors_spec = numpy.asarray(colors_spec)
+        # gridify the image and confirm all sub images match the above specs
+        grid = Grid(dimensions, cell_padding)
+        for grid_position, borders in grid.borders_by_grid_position(grid_image):
+            top, left, bottom, right = borders
+            # confirm the size
+            cell_shape = (bottom - top, right - left, channels)
+            self.assertEqual(cell_shape, cell_shape_spec)
+            spec_pixel = colors_spec[grid_position]
+            # confirm the color for each pixel in the cell
+            for pixel_row in range(top, bottom):
+                for pixel_col in range(left, right):
+                    p = pixel_row, pixel_col
+                    image_pixel = grid_image[p]
+                    self.assertTrue(numpy.all(image_pixel == spec_pixel),
+                                    'Pixel in grid cell:'
+                                    '\n{}: {}'
+                                    '\nunexpectedly not equal to specification:'
+                                    '\n{}'.format(grid_position, image_pixel,
+                                                  spec_pixel))
+
+    def _generic_grid(self, dimensions=None, cell_padding=None):
+        dimensions = dimensions or (5, 7)
+        cell_padding = cell_padding or (0.1, 0.3, 0.5, 0.7)
+        return Grid(dimensions, cell_padding)
 
 
 class Test_ProportionalRegion(unittest.TestCase):
@@ -17,8 +102,8 @@ class Test_ProportionalRegion(unittest.TestCase):
 
     # Configuration
     def test_seting_proportions_validates_them(self):
-        some_proportions = _generic_proportions(0, .1, .2, .3)
-        other_proportions = _generic_proportions(.4, .5, .6, .7)
+        some_proportions = (0, .1, .2, .3)
+        other_proportions = (.4, .5, .6, .7)
         pr = ProportionalRegion(some_proportions)
         with patch.object(visuals, '_validate_proportions') as m_validate:
             pr.proportions = other_proportions
@@ -236,6 +321,14 @@ class Test_Helpers(unittest.TestCase):
             self.assertRaises(ValueError,
                               visuals._validate_proportions, out_of_bounds)
 
+    def test__validate_dimensions_raises_ValueError_if_dim_less_than_one(self):
+        half = 0.5, 3
+        zero = 3, 0
+        negative = -1, 3
+        self.assertRaises(ValueError, visuals._validate_dimensions, half)
+        self.assertRaises(ValueError, visuals._validate_dimensions, zero)
+        self.assertRaises(ValueError, visuals._validate_dimensions, negative)
+
 
 # Helper factories
 def _generic_image(height=None, width=None, channels=None):
@@ -255,6 +348,10 @@ def _generic_proportions(top=None, left=None, bottom=None, right=None):
     right = right if right is not None else 0.7
     return top, left, bottom, right
 
+def _generic_dimensions(rows=None, cols=None):
+    rows = rows if rows is not None else 5
+    cols = cols if cols is not None else 7
+    return rows, cols
 
 if __name__ == '__main__':
     pass
