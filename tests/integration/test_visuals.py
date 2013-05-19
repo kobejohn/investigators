@@ -16,9 +16,9 @@ class Test_Grid(unittest.TestCase):
         self.assertEqual(g.dimensions, some_dimensions)
 
     def test___init___sets_cell_padding(self):
-        some_proportions = _generic_proportions()
-        g = self._generic_grid(cell_padding=some_proportions)
-        self.assertEqual(g.cell_padding, some_proportions)
+        padding = self._generic_padding()
+        g = self._generic_grid(cell_padding=padding)
+        self.assertEqual(g.cell_padding, padding)
 
     # Configuration
     def test_setting_dimensions_validates_them(self):
@@ -29,13 +29,17 @@ class Test_Grid(unittest.TestCase):
             g.dimensions = other_dimensions
         m_validate.assert_called_with(other_dimensions)
 
-    def test_seting_cell_padding_validates_the_proportions(self):
-        some_proportions = (0, .1, .2, .3)
-        other_proportions = (.4, .5, .6, .7)
-        g = self._generic_grid(cell_padding=some_proportions)
+    def test_seting_cell_padding_validates_padding_converted_to_rectangle(self):
+        cell_padding_1 = (0, .1, .2, .3)
+        cell_padding_2 = p_top, p_left, p_bottom, p_right = (.1, .2, 0, .1)
+        # this is the specification of how padding is converted to a rectangle
+        padded_cell_2 = visuals.Rectangle(p_top, p_left,
+                                          1 - p_bottom, 1 - p_right)
+        g = self._generic_grid(cell_padding=cell_padding_1)
+        # Set *new* padding and make sure the validation is called
         with patch.object(visuals, '_validate_proportions') as m_validate:
-            g.cell_padding = other_proportions
-        m_validate.assert_called_with(other_proportions)
+            g.cell_padding = cell_padding_2
+        m_validate.assert_called_with(padded_cell_2)
 
     # Splitting an image into a grid
     def test_gridify_generates_correct_sequence_of_borders(self):
@@ -92,6 +96,10 @@ class Test_Grid(unittest.TestCase):
         cell_padding = cell_padding or (0.1, 0.3, 0.5, 0.7)
         return Grid(dimensions, cell_padding)
 
+    def _generic_padding(self, top=0.1, left=0.2, bottom=0.3, right=0.4):
+        return top, left, bottom, right
+
+
 
 class Test_ProportionalRegion(unittest.TestCase):
     # Initialization
@@ -134,7 +142,7 @@ class Test_TemplateFinder(unittest.TestCase):
     def test___init___standardizes_image(self):
         img = _generic_image()
         mask = _generic_image()
-        with patch.object(TemplateFinder, '_standardize_image') as m_stdize:
+        with patch.object(visuals, '_standardize_image') as m_stdize:
             m_stdize.return_value = _generic_image(channels=3)
             TemplateFinder(img, mask=mask)
         m_stdize.assert_called_with(img)
@@ -184,9 +192,9 @@ class Test_TemplateFinder(unittest.TestCase):
         imgf = TemplateFinder(template, sizes=None)
         # confirm standardize is called when analyzing a scene
         scene = _generic_image(height=100, width=100)
-        with patch.object(TemplateFinder, '_standardize_image') as m_stdize:
+        with patch.object(visuals, '_standardize_image') as m_stdize:
             m_stdize.return_value = _generic_image(channels=3)
-            imgf._standardize_image(scene)
+            imgf.locate_in(scene)
         m_stdize.assert_called_with(scene)
 
     def test_locate_returns_None_if_no_internal_templates_found_in_scene(self):
@@ -337,7 +345,6 @@ class Test_Helpers(unittest.TestCase):
         unhandled_channel_count = _generic_image(channels=2)
         just_a_string = 'whut'
         # confirm the bad one fails
-        imgf = self._generic_ImageFinder()
         self.assertRaises(TypeError, visuals._standardize_image,
                           unhandled_channel_count)
         self.assertRaises(TypeError, visuals._standardize_image,

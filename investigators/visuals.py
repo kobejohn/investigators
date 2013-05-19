@@ -42,9 +42,10 @@ class Grid(object):
     def _set_cell_padding(self, padding):
         # convert to relative window instead of the size from each border
         top, left, bottom, right = padding
-        self._padded_cell = Rectangle(top, left, 1-bottom, 1-top)
-        _validate_proportions(self._padded_cell)
-        self._cell_padding = Rectangle(*padding)
+        padded_cell = Rectangle(top, left, 1-bottom, 1-right)
+        _validate_proportions(padded_cell)
+        self._padded_cell = padded_cell
+        self._cell_padding = padding  # this is not a rectangle so don't use it
 
     cell_padding = property(_get_cell_padding, _set_cell_padding)
 
