@@ -5,9 +5,10 @@ except ImportError:
     use_setuptools()
     from setuptools import setup
 
+
 setup(
     name='investigators',
-    version='0.1.1',
+    version='0.1.2',
     py_modules=['distribute_setup'],
     packages=['investigators'],
     install_requires=['numpy'],
