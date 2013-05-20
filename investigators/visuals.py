@@ -29,8 +29,14 @@ class ImageIdentifier(object):
         acceptable_match_name_and_value = list()
         for name, template in self._templates_std.items():
             template_eq, image_eq = self._equalize(template, image_std)
-            result = cv2.matchTemplate(image_std, template_eq,
+            result = cv2.matchTemplate(image_eq, template_eq,
                                        method=cv2.TM_SQDIFF)
+            # Instead of norming that stretches the image:
+            # norm vs the worst case square difference:
+            # (worst case one pixel)^2 * (TxI overlap)
+            # 255^2 * T size
+            norm = (255 ** 2) * template_eq.shape[0] * template_eq.shape[1]
+            result /= float(norm)  # float just for paranoia
             minVal, maxVal, minLoc, maxLoc = cv2.minMaxLoc(result)
             if minVal <= self.immediate_threshold:
                 return name  # done!
@@ -206,11 +212,12 @@ class TemplateFinder(object):
                 # skip if template too large. would cause ugly opencv error
                 continue
             result = cv2.matchTemplate(scene_std, template, cv2.TM_SQDIFF)
-            # for some reason TM_SQDIFF_NORMED does not behave well in tests
-            # so do a manual normalization (avoiding zero division error)
-            norm = numpy.max(result)
-            if norm:  # i.e. don't normalize if it's all zeros (divide by zero)
-                result /= float(norm)  # float just for paranoia
+            # Instead of norming that stretches the image:
+            # norm vs the worst case square difference:
+            # (worst case one pixel)^2 * (TxI overlap)
+            # 255^2 * T size
+            norm = (255 ** 2) * template.shape[0] * template.shape[1]
+            result /= float(norm)  # float just for paranoia
             min_val, max_val, (min_left, min_top), max_left_top\
                 = cv2.minMaxLoc(result)
             bottom, right = min_top + template_h, min_left + template_w
