@@ -1,5 +1,6 @@
 from investigators.visuals import cv2  # package includes a fallback cv2
 from investigators.visuals import TemplateFinder, ProportionalRegion, Grid
+from investigators.visuals import ImageIdentifier
 
 # Show the starting screenshot
 screenshot = cv2.imread('screenshot 1280x800, game 800x600.png')
@@ -29,16 +30,27 @@ board = game[board_top:board_bottom, board_left:board_right]
 cv2.waitKey()
 cv2.imshow('extracted board', board)
 
-# Use Grid to split the grid into image cells. display only first four
+# Use Grid to split the grid into image cells. record only the first four
 board_dimensions = 8, 8
 tile_padding = (0.1, 0.1, 0.1, 0.1)
 grid = Grid(board_dimensions, tile_padding)
+first_four_tiles = list()
 for grid_p, cell_borders in grid.borders_by_grid_position(board):
     if grid_p in ((0, 0), (0, 1), (0, 2), (0, 3)):
         top, left, bottom, right = (cell_borders.top, cell_borders.left,
                                     cell_borders.bottom, cell_borders.right)
-        cv2.waitKey()
-        cv2.imshow(str(grid_p), board[top:bottom, left:right])
+        first_four_tiles.append(board[top:bottom, left:right].copy())
+
+# Use ImageIdentifier to identify each of the first four tiles
+ii = ImageIdentifier({'red': cv2.imread('r.png'),
+                      'blue': cv2.imread('b.png'),
+                      'coins': cv2.imread('m.png'),
+                      'skull': cv2.imread('s.png')})
+for tile in first_four_tiles:
+    name = ii.identify(tile)
+    cv2.putText(tile, name, (2, 20), 0, 0.6, (255, 255, 255), 2)
+    cv2.waitKey()
+    cv2.imshow('identified original tile', tile)
 
 # clean up
 cv2.waitKey()
