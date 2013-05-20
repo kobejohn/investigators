@@ -139,7 +139,7 @@ class Test_ProportionalRegion(unittest.TestCase):
 
 class Test_TemplateFinder(unittest.TestCase):
     # Initialization
-    def test___init___standardizes_image(self):
+    def test___init___standardizes_template(self):
         img = _generic_image()
         mask = _generic_image()
         with patch.object(visuals, '_standardize_image') as m_stdize:
