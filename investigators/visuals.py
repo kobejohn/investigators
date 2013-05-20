@@ -14,6 +14,61 @@ Rectangle = namedtuple('Rectangle', ('top', 'left', 'bottom', 'right'))
 Dimensions = namedtuple('Dimensions', ('rows', 'columns'))
 
 
+class ImageIdentifier(object):
+    def __init__(self, templates,
+                 acceptable_threshold=0.5, immediate_threshold=0.1):
+        # convert the stored templates to standardized images
+        templates_std = {k: _standardize_image(i) for k, i in templates.items()}
+        self._templates_std = templates_std
+        self.acceptable_threshold = acceptable_threshold
+        self.immediate_threshold = immediate_threshold
+
+    def identify(self, image):
+        """Return the name of the best matching template or None if no match."""
+        image_std = _standardize_image(image)
+        acceptable_match_name_and_value = list()
+        for name, template in self._templates_std.items():
+            template_eq, image_eq = self._equalize(template, image_std)
+            result = cv2.matchTemplate(image_std, template_eq,
+                                       method=cv2.TM_SQDIFF)
+            minVal, maxVal, minLoc, maxLoc = cv2.minMaxLoc(result)
+            if minVal <= self.immediate_threshold:
+                return name  # done!
+            elif minVal <= self.acceptable_threshold:
+                acceptable_match_name_and_value.append((name, minVal))
+        best_name = None
+        if acceptable_match_name_and_value:
+            best_name, best_value = min(acceptable_match_name_and_value,
+                                        key=lambda x: x[1])
+        return best_name
+
+    def _equalize(self, template, image):
+        """Shrink template that doesn't fit or shrink image if template fits."""
+        template_h, template_w = template.shape[0:2]
+        image_h, image_w = image.shape[0:2]
+        if (template_h <= image_h) and (template_w <= image_w):
+            eq_template = template.copy()  # pass template through
+            # template fits --> shrink image as little as possible
+            h_scale = float(template_h) / image_h
+            w_scale = float(template_w) / image_w
+            scale = max(h_scale, w_scale)  # max --> minimum shrinking
+            scaled_h = int(round(scale * image_h))
+            scaled_w = int(round(scale * image_w))
+            eq_image = cv2.resize(image, (scaled_w, scaled_h),
+                                  interpolation=cv2.INTER_AREA)
+        else:
+            eq_image = image.copy()  # pass image through
+            # template doesn't fit --> shrink template to completely fit
+            h_scale = float(image_h) / template_h
+            w_scale = float(image_w) / template_w
+            scale = min(h_scale, w_scale)  # min --> most shrinking
+            scaled_h = int(round(scale * template_h))
+            scaled_w = int(round(scale * template_w))
+            eq_template = cv2.resize(image, (scaled_w, scaled_h),
+                                     interpolation=cv2.INTER_AREA)
+        return eq_template, eq_image
+
+
 class Grid(object):
     def __init__(self, dimensions, cell_padding):
         """Arguments:

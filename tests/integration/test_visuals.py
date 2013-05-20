@@ -6,6 +6,125 @@ import numpy
 from investigators import visuals
 from investigators.visuals import cv2
 from investigators.visuals import ProportionalRegion, TemplateFinder, Grid
+from investigators.visuals import ImageIdentifier
+
+class Test_ImageIdentifier(unittest.TestCase):
+    def test___init___standardizes_all_templates(self):
+        # produce some templates
+        image = _generic_image()
+        templates = {'some_template': image}
+        with patch.object(visuals, '_standardize_image') as m_stdize:
+            m_stdize.return_value = _generic_image(channels=3)
+            ImageIdentifier(templates)
+        # bare mock assertions are dangerous. without confirmation, could just
+        # be mispelled
+        self.assertIsNone(m_stdize.assert_called_with(image))
+
+    def test_identify_standardizes_image(self):
+        # setup the image identifier
+        ii = self._generic_ImageIdentifier()
+        # confirm standardize is called when identifying an image
+        image = _generic_image()
+        with patch.object(visuals, '_standardize_image') as m_stdize:
+            m_stdize.return_value = _generic_image(channels=3)
+            ii.identify(image)
+        # bare mock assertions are dangerous. without confirmation, could just
+        # be mispelled
+        self.assertIsNone(m_stdize.assert_called_with(image))
+
+    def test_identify_equalizes_template_and_image_sizes(self):
+        template = _generic_image()
+        templates = {'some_template': template}
+        ii = self._generic_ImageIdentifier(templates=templates)
+        image = _generic_image()
+        with patch.object(ii, '_equalize') as m_equalize:
+            m_equalize.return_value = (_generic_image(channels=3),) * 2
+            ii.identify(image)
+        # bare mock assertions are dangerous. without confirmation, could just
+        # be mispelled
+        self.assertIs(m_equalize.called, True)
+
+    def test_identify_returns_None_if_no_qualifying_match_found(self):
+        # create a template and image that are bad matches
+        template = _generic_image()
+        templates = {'some_template': template}
+        image = _generic_image()
+        # create an identifier with both impossible thresholds
+        impossible = -1
+        ii = self._generic_ImageIdentifier(templates,
+                                           acceptable_threshold=impossible,
+                                           immediate_threshold=impossible)
+        # try to identify the white image and confirm that it failed
+        best_match = ii.identify(image)
+        self.assertIsNone(best_match)
+
+    def test_identify_returns_name_quickly_if_over_immediate_threshold(self):
+        # create images to match
+        template = _generic_image()
+        template_name = 'some_template'
+        templates = {template_name: template}
+        image = _generic_image()
+        # set the immediate threshold to easy, and acceptable to impossible
+        always = 2
+        impossible = -1
+        ii = self._generic_ImageIdentifier(templates,
+                                           acceptable_threshold=impossible,
+                                           immediate_threshold=always)
+        # try to identify the white image and confirm that it failed
+        best_match = ii.identify(image)
+        self.assertEqual(best_match, template_name)
+
+    def test_identify_returns_name_at_end_if_over_acceptable_threshold(self):
+        # create images to match
+        template = _generic_image()
+        template_name = 'some_template'
+        templates = {template_name: template}
+        image = _generic_image()
+        # set the immediate threshold to easy, and acceptable to impossible
+        always = 2
+        impossible = -1
+        ii = self._generic_ImageIdentifier(templates,
+                                           acceptable_threshold=always,
+                                           immediate_threshold=impossible)
+        # try to identify the white image and confirm that it failed
+        best_match = ii.identify(image)
+        self.assertEqual(best_match, template_name)
+
+    def test__equalize_sizes_shrinks_large_template_to_fit_in_image(self):
+        template_h, template_w = 15, 100
+        image_h, image_w = small_image_size = 20, 20
+        shrunk_template_size_spec = 3, 20  # 15/5, 100/5
+        big_template = _generic_image(height=template_h, width=template_w)
+        small_image = _generic_image(height=image_h, width=image_w)
+        # confirm bigger template gets shrunk; smaller image is unchanged
+        ii = self._generic_ImageIdentifier()
+        eq_template, eq_image = ii._equalize(big_template, small_image)
+        equalized_template_size = eq_template.shape[0:2]
+        equalized_image_size = eq_image.shape[0:2]
+        self.assertEqual(equalized_template_size, shrunk_template_size_spec)
+        self.assertEqual(equalized_image_size, small_image_size)
+
+    def test__equalize_sizes_shrinks_large_image_so_that_template_fits(self):
+        template_h, template_w = original_template_size = 5, 10
+        image_h, image_w = 20, 100
+        shrunk_image_size_spec = 5, 25  # 20/4, 100/4
+        small_template = _generic_image(height=template_h, width=template_w)
+        big_image = _generic_image(height=image_h, width=image_w)
+        # confirm bigger image gets shrunk; smaller template is unchanged
+        ii = self._generic_ImageIdentifier()
+        eq_template, eq_image = ii._equalize(small_template, big_image)
+        equalized_template_size = eq_template.shape[0:2]
+        equalized_image_size = eq_image.shape[0:2]
+        self.assertEqual(equalized_template_size, original_template_size)
+        self.assertEqual(equalized_image_size, shrunk_image_size_spec)
+
+    def _generic_ImageIdentifier(self, templates=None,
+                                 acceptable_threshold=0.5,
+                                 immediate_threshold=0.1):
+        templates = templates or {str(i): _generic_image() for i in range(3)}
+        return ImageIdentifier(templates,
+                               acceptable_threshold=acceptable_threshold,
+                               immediate_threshold=immediate_threshold)
 
 
 class Test_Grid(unittest.TestCase):
