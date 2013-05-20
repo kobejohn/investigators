@@ -1,6 +1,7 @@
 from collections import namedtuple
 
-import ImageGrab, numpy
+import ImageGrab
+import numpy
 
 try:
     import cv2
