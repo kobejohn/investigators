@@ -27,7 +27,9 @@ class Test_Grid(unittest.TestCase):
         g = self._generic_grid(dimensions=some_dimensions)
         with patch.object(visuals, '_validate_dimensions') as m_validate:
             g.dimensions = other_dimensions
-        m_validate.assert_called_with(other_dimensions)
+        # bare mock assertions are dangerous. without confirmation, could just
+        # be mispelled
+        self.assertIsNone(m_validate.assert_called_with(other_dimensions))
 
     def test_seting_cell_padding_validates_padding_converted_to_rectangle(self):
         cell_padding_1 = (0, .1, .2, .3)
@@ -39,7 +41,9 @@ class Test_Grid(unittest.TestCase):
         # Set *new* padding and make sure the validation is called
         with patch.object(visuals, '_validate_proportions') as m_validate:
             g.cell_padding = cell_padding_2
-        m_validate.assert_called_with(padded_cell_2)
+        # bare mock assertions are dangerous. without confirmation, could just
+        # be mispelled
+        self.assertIsNone(m_validate.assert_called_with(padded_cell_2))
 
     # Splitting an image into a grid
     def test_gridify_generates_correct_sequence_of_borders(self):
@@ -100,7 +104,6 @@ class Test_Grid(unittest.TestCase):
         return top, left, bottom, right
 
 
-
 class Test_ProportionalRegion(unittest.TestCase):
     # Initialization
     def test___init___sets_proportions(self):
@@ -115,7 +118,9 @@ class Test_ProportionalRegion(unittest.TestCase):
         pr = ProportionalRegion(some_proportions)
         with patch.object(visuals, '_validate_proportions') as m_validate:
             pr.proportions = other_proportions
-        m_validate.assert_called_with(other_proportions)
+        # bare mock assertions are dangerous. without confirmation, could just
+        # be mispelled
+        self.assertIsNone(m_validate.assert_called_with(other_proportions))
 
     # Returning the window
     def test_region_in_returns_correct_borders(self):
