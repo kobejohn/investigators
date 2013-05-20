@@ -64,7 +64,7 @@ class ImageIdentifier(object):
             scale = min(h_scale, w_scale)  # min --> most shrinking
             scaled_h = int(round(scale * template_h))
             scaled_w = int(round(scale * template_w))
-            eq_template = cv2.resize(image, (scaled_w, scaled_h),
+            eq_template = cv2.resize(template, (scaled_w, scaled_h),
                                      interpolation=cv2.INTER_AREA)
         return eq_template, eq_image
 
