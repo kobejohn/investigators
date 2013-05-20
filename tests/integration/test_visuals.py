@@ -5,10 +5,34 @@ import numpy
 # silly workaround to avoid lighting up PyCharm with false errors
 patch.object = patch.object
 
-from investigators import visuals
+from investigators import visuals  # for testing module functions
 from investigators.visuals import cv2
 from investigators.visuals import ProportionalRegion, TemplateFinder, Grid
 from investigators.visuals import ImageIdentifier
+
+
+class Test_screen_shot(unittest.TestCase):
+    def test_screen_shot_gets_an_image_with_same_resolution_as_screen(self):
+        # thanks to jcao219 for the python-only way to get screen resolution
+        # http://stackoverflow.com/a/3129524/377366
+        import ctypes
+        user32 = ctypes.windll.user32
+        ss_h_w_spec = user32.GetSystemMetrics(1), user32.GetSystemMetrics(0)
+        # get the actual screen shot and confirm the size
+        screen_shot = visuals.screen_shot()
+        ss_h_w = screen_shot.shape[0:2]
+        self.assertEqual(ss_h_w, ss_h_w_spec)
+
+    def test_screen_shot_standardizes_the_screen_image(self):
+        import ImageGrab
+        with patch.object(ImageGrab, 'grab') as m_grab:
+            m_grab.return_value = _generic_image()
+            with patch.object(visuals, '_standardize_image') as m_stdize:
+                m_stdize.return_value = _generic_image(channels=3)
+                visuals.screen_shot()
+        # bare mock assertions are dangerous. without confirmation, could just
+        # be mispelled
+        self.assertIsNone(m_stdize.assert_called_with(m_grab.return_value))
 
 
 class Test_ImageIdentifier(unittest.TestCase):
@@ -465,19 +489,19 @@ class Test_Helpers(unittest.TestCase):
         self.assertRaises(ValueError, visuals._validate_dimensions, zero)
         self.assertRaises(ValueError, visuals._validate_dimensions, negative)
 
-    def test__standardize_image_raise_TypeError_unless_bgr_bgra_or_gry(self):
+    def test__standardize_image_raise_TypeErr_unless_bgr_bgra_gry_or_PIL(self):
+        import Image
+        pil = Image.new('RGB', (4,3))
         bgr = _generic_image(channels=3)
         bgra = _generic_image(channels=4)
         gray = _generic_image(channels=None)
         unhandled_channel_count = _generic_image(channels=2)
         just_a_string = 'whut'
-        # confirm the bad one fails
-        self.assertRaises(TypeError, visuals._standardize_image,
-                          unhandled_channel_count)
-        self.assertRaises(TypeError, visuals._standardize_image,
-                          just_a_string)
+        # confirm the bad ones fail
+        for bad_img in (unhandled_channel_count, just_a_string):
+            self.assertRaises(TypeError, visuals._standardize_image, bad_img)
         # confirm the valid ones don't fail
-        for ok_img in (bgr, bgra, gray):
+        for ok_img in (pil, bgr, bgra, gray):
             visuals._standardize_image(ok_img)
 
 

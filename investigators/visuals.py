@@ -1,6 +1,6 @@
 from collections import namedtuple
 
-import numpy
+import ImageGrab, numpy
 
 try:
     import cv2
@@ -12,6 +12,13 @@ except ImportError:
 
 Rectangle = namedtuple('Rectangle', ('top', 'left', 'bottom', 'right'))
 Dimensions = namedtuple('Dimensions', ('rows', 'columns'))
+
+
+def screen_shot():
+    """Get a screenshot and return it as a standard image."""
+    pil_img = ImageGrab.grab()
+    numpy_img = _standardize_image(pil_img)
+    return numpy_img
 
 
 class ImageIdentifier(object):
@@ -332,24 +339,38 @@ def _validate_dimensions(dimensions):
 
 def _standardize_image(img):
     """Convert valid image to numpy bgr or raise TypeError for invalid."""
-    # get the channels
-    try:
-        actual_channels = img.shape[2]
-    except IndexError:
-        actual_channels = None  # grayscale doesn't have the extra item
-    except AttributeError:
-        actual_channels = -1  # it's not an numpy image
-    # try to convert to opencv BGR
-    bgr = 3
-    bgra = 4
-    gray = None
-    converters_and_args = {bgr: (lambda x: x.copy(), (img,)),  # copy only
-                           bgra: (cv2.cvtColor, (img, cv2.COLOR_BGRA2BGR)),
-                           gray: (cv2.cvtColor, (img, cv2.COLOR_GRAY2BGR))}
-    try:
-        conversion_method, args = converters_and_args[actual_channels]
-    except KeyError:
+    UNKNOWN = None
+    RGB = -3
+    BGR = 3
+    BGRA = 4
+    GRAY = 1
+    KNOWN_TYPES = (RGB, BGR, BGRA, GRAY)
+    channels = UNKNOWN
+    # basically, convert explicitly handled cases and throw an error otherwise.
+    # Discover channels for PIL and conver to basic numpy
+    if channels is UNKNOWN:
+        try:
+            channels = -1 * len(img.getbands())  # assume Gray or RGB
+            img = numpy.asarray(img)
+        except AttributeError:
+            pass  # it wasn't PIL
+    # Discover channels for Numpy
+    if channels is UNKNOWN:
+        try:
+            channels = img.shape[2]  # BGR or BGRA or unsupported
+        except IndexError:
+            channels = GRAY  # numpy gray has no third shape element
+        except AttributeError:
+            pass  # it wasn't numpy
+    # error if not an explicitly handled type
+    if channels not in KNOWN_TYPES:
         raise TypeError('Unexpected image type:\n{}'.format(img))
+    # Standardize the basic numpy image to BGR
+    converters_and_args = {BGR: (lambda x: x.copy(), (img,)),  # copy only
+                           RGB: (cv2.cvtColor, (img, cv2.COLOR_RGB2BGR)),
+                           BGRA: (cv2.cvtColor, (img, cv2.COLOR_BGRA2BGR)),
+                           GRAY: (cv2.cvtColor, (img, cv2.COLOR_GRAY2BGR))}
+    conversion_method, args = converters_and_args[channels]
     return conversion_method(*args)
 
 
