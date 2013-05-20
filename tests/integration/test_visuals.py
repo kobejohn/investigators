@@ -2,11 +2,14 @@ import unittest
 
 from mock import patch
 import numpy
+# silly workaround to avoid lighting up PyCharm with false errors
+patch.object = patch.object
 
 from investigators import visuals
 from investigators.visuals import cv2
 from investigators.visuals import ProportionalRegion, TemplateFinder, Grid
 from investigators.visuals import ImageIdentifier
+
 
 class Test_ImageIdentifier(unittest.TestCase):
     def test___init___standardizes_all_templates(self):
