@@ -22,6 +22,187 @@ def screen_shot():
     return numpy_img
 
 
+class TankLevel(object):
+    def __init__(self, fill_bgr, empty_bgr, ignore_bgr):
+        self.colors = fill_bgr, empty_bgr, ignore_bgr
+
+    # explicit property methods to make mocking easy / possible
+    def _get_colors(self):
+        return self._colors
+
+    def _set_colors(self, fill_empty_ignore):
+        self._validate_colors(fill_empty_ignore)
+        self._colors = fill_empty_ignore
+
+    colors = property(_get_colors, _set_colors)
+
+    def how_full(self, upright_tank_image):
+        """Return an approximate proportion of how full the tank is from 0 to 1.
+
+        Arguments:
+        upright_tank_image: image of a tank, cropped as closely as possible
+            and with filled part on the bottom of the image, empty part on top
+        """
+        tank_std = _standardize_image(upright_tank_image)
+        fill, empty, ignore = self.colors
+        # reduce palette
+        reduced = self._reduce_palette(tank_std, fill, empty, ignore)
+        # dilate to get rid of noise and allow good cropping
+        dilated = self._proportional_dilate(reduced, fill, empty, ignore)
+        # crop outer ignore region if ignore was specified
+        if ignore is not None:
+            cropped = self._crop(dilated, ignore)
+        else:
+            cropped = dilated
+        # find longest horizontal line
+        border_row = self._find_border_row(cropped, fill, empty)
+        h = cropped.shape[0]
+        fill_portion = float(h - border_row) / h
+        return fill_portion
+
+    def _reduce_palette(self, image, fill, empty, ignore):
+        """Without changing data types, reduce the image to 2 or 3 colors."""
+        base_shape = image.shape
+        # allow room in these calculations for squares, negative, etc (int32)
+        fill_img = numpy.ndarray(base_shape, dtype=numpy.int32)
+        empty_img = numpy.ndarray(base_shape, dtype=numpy.int32)
+        fill_img[::] = fill
+        empty_img[::] = empty
+        fill_dist =\
+            numpy.sqrt(
+                numpy.sum(
+                    numpy.square(fill_img - image),
+                    -1))
+        empty_dist =\
+            numpy.sqrt(
+                numpy.sum(
+                    numpy.square(empty_img - image),
+                    -1))
+        if ignore is not None:
+            ignore_img = numpy.ndarray(base_shape, dtype=numpy.uint32)
+            ignore_img[::] = ignore
+            ignore_dist = \
+                numpy.sqrt(
+                    numpy.sum(
+                        numpy.square(ignore_img - image),
+                        -1))
+            closest_to_fill = numpy.logical_and(fill_dist <= empty_dist,
+                                                fill_dist <= ignore_dist)
+            closest_to_empty = numpy.logical_and(empty_dist < fill_dist,
+                                                 empty_dist <= ignore_dist)
+            closest_to_ignore = numpy.logical_not(closest_to_fill +
+                                                  closest_to_empty)
+        else:
+            closest_to_fill = fill_dist <= empty_dist
+            closest_to_empty = numpy.logical_not(closest_to_fill)
+        fill_points = numpy.nonzero(closest_to_fill)
+        empty_points = numpy.nonzero(closest_to_empty)
+        tank_reduced = numpy.ndarray(base_shape, dtype=numpy.uint8)
+        tank_reduced.fill(0)
+        tank_reduced[fill_points] = fill
+        tank_reduced[empty_points] = empty
+        if ignore is not None:
+            ignore_points = numpy.nonzero(closest_to_ignore)
+            tank_reduced[ignore_points] = ignore
+        return tank_reduced
+
+    def _proportional_dilate(self, image, fill, empty, ignore):
+        """Dilate with fill > empty > ignore to get rid of noise lines."""
+        # clearly differentiate and prioritize colors before dilating
+        fill_positions = numpy.nonzero(numpy.all(image == fill, axis=-1))
+        empty_positions = numpy.nonzero(numpy.all(image == empty, axis=-1))
+        prioritized = numpy.ndarray(image.shape, dtype=numpy.uint8)
+        prioritized_fill = 255
+        prioritized_empty = 127
+        prioritized[fill_positions] = prioritized_fill
+        prioritized[empty_positions] = prioritized_empty
+        if ignore is not None:
+            ignore_positions =\
+                numpy.nonzero(numpy.all(image == ignore, axis=-1))
+            prioritized_ignore = 0
+            prioritized[ignore_positions] = prioritized_ignore
+        else:
+            prioritized_ignore = None
+        # dilate the prioritized colors
+        h, w = image.shape[0:2]
+        proportion = 0.1  # i.e. dilate with an element 5% of each dimension
+        vertical = max(int(round(proportion * h)), 3)  # minimum size 3
+        vertical += 0 if (vertical % 2) else 1  # make it odd if even
+        horizontal = max(int(round(proportion * w)), 3)
+        horizontal += 0 if (horizontal % 2) else 1  # make it odd if even
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT,
+                                           (horizontal, vertical))
+        dilated = cv2.dilate(prioritized, kernel)
+        # convert any adjusted colors back to their closest palette color
+        dilated = self._reduce_palette(dilated, prioritized_fill,
+                                       prioritized_empty, prioritized_ignore)
+        fill_positions =\
+            numpy.nonzero(numpy.all(dilated == prioritized_fill, axis=-1))
+        empty_positions =\
+            numpy.nonzero(numpy.all(dilated == prioritized_empty, axis=-1))
+        # replace the prioritized colors with the originals
+        dilated[fill_positions] = fill
+        dilated[empty_positions] = empty
+        if ignore is not None:
+            ignore_positions = \
+                numpy.nonzero(numpy.all(dilated == prioritized_ignore, axis=-1))
+            dilated[ignore_positions] = ignore
+        return dilated
+
+    def _crop(self, image, ignore):
+        """Crop any borders that match ignore."""
+        # thanks to Abid Rahman K on Stack Overflow for the nice crop technique
+        # http://stackoverflow.com/a/13539194/377366
+        ignore_map = numpy.all(image != ignore, axis=-1)
+        non_ignore_positions = numpy.nonzero(ignore_map)
+        ignore_or_not = numpy.ndarray(image.shape[0:2], dtype=numpy.uint8)
+        ignore_or_not.fill(0)  # base is ignore
+        ignore_or_not[non_ignore_positions] = 250
+        _, thresh = cv2.threshold(ignore_or_not,
+                                  245, 255, cv2.THRESH_BINARY)
+        contours, hierarchy = cv2.findContours(thresh, cv2.RETR_EXTERNAL,
+                                               cv2.CHAIN_APPROX_SIMPLE)
+        x, y, w, h = cv2.boundingRect(contours[0])
+        return image[y:y + h, x: x + w]
+
+    def _find_border_row(self, image, fill, empty):
+        """Return the row of the following in order:
+        - strongest horizontal border found in image
+        - image top if fill color is prevalent
+        - image bottom if empty color is prevalent
+        - image bottom if same amount of fill and empty
+        """
+        edges = cv2.Canny(image, 80, 160)
+        import math
+        lines = cv2.HoughLinesP(edges, 1, math.pi/2, 2)
+        # return based on the strongest border:
+        if lines is not None:
+            fill_line = max(lines[0], key=lambda (x1, y1, x2, y2): abs(x2 - x1))
+            return fill_line[1]
+        # return based on balance of fill and empty color
+        fill_count = len(numpy.nonzero(numpy.all(image == fill, axis=-1))[0])
+        empty_count = len(numpy.nonzero(numpy.all(image == empty, axis=-1))[0])
+        if fill_count > empty_count:
+            return 0  # top of the image (full)
+        # by default, return bottom of the image (empty)
+        return image.shape[0] - 1  # bottom of the image
+
+    def _validate_colors(self, fill_empty_ignore):
+        # confirm 3 tuple
+        try:
+            fill, empty, ignore = fill_empty_ignore
+        except (ValueError, TypeError):
+            raise TypeError('Expected a tuple of three colors, but got {}'
+                            ''.format(fill_empty_ignore))
+        # confirm no 2 colors are the same
+        if (fill == empty) or (fill == ignore) or (empty == ignore):
+            raise ValueError('Expected the three colors to be different but'
+                             ' got {}'.format(fill_empty_ignore))
+        # confirm fill and empty are not None
+        if (fill is None) or (empty is None):
+            raise ValueError('Unexpectedly received None for fill or empty')
+
+
 class ImageIdentifier(object):
     def __init__(self, templates,
                  acceptable_threshold=0.5, immediate_threshold=0.1):

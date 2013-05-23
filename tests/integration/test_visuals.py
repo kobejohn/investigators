@@ -1,4 +1,5 @@
 import unittest
+from os import path
 
 from mock import patch
 import numpy
@@ -8,7 +9,95 @@ patch.object = patch.object
 from investigators import visuals  # for testing module functions
 from investigators.visuals import cv2
 from investigators.visuals import ProportionalRegion, TemplateFinder, Grid
-from investigators.visuals import ImageIdentifier
+from investigators.visuals import ImageIdentifier, TankLevel
+
+this_path = path.abspath(path.split(__file__)[0])
+
+
+class Test_TankLevel(unittest.TestCase):
+    def test_setting_region_colors_validates_them(self):
+        colors = fill, empty, ignore = (0, 0, 0), (10, 10, 10), (20, 20, 20)
+        tl = self._generic_TankLevel(fill=fill, empty=empty, ignore=ignore)
+        with patch.object(tl, '_validate_colors') as m_validate:
+            tl.colors = fill, empty, ignore
+        # bare mock assertions are dangerous. without confirmation, could just
+        # be mispelled
+        self.assertIsNone(m_validate.assert_called_with(colors))
+
+    def test_how_full_standardizes_tank_image(self):
+        # setup the image identifier
+        tl = self._generic_TankLevel()
+        # confirm standardize is called when measuring the tank
+        image = _generic_image()
+        with patch.object(visuals, '_standardize_image') as m_stdize:
+            m_stdize.return_value = _generic_image(channels=3)
+            tl.how_full(image)
+        # bare mock assertions are dangerous. without confirmation, could just
+        # be mispelled
+        self.assertIsNone(m_stdize.assert_called_with(image))
+
+    def test_how_full_returns_approximatelly_correct_fill_level(self):
+        tank_image = cv2.imread(path.join(this_path, 'health bar 77%.png'))
+        self.assertIsNotNone(tank_image)  # to avoid confusing errors
+        fill = (5, 5, 200)
+        empty = (40, 40, 50)
+        ignore = (20, 20, 20)
+        tl = self._generic_TankLevel(fill=fill, empty=empty, ignore=ignore)
+        fill_level = tl.how_full(tank_image)
+        fill_level_spec = 0.77
+        tolerance = 0.1  # allow +/- 10%
+        self.assertAlmostEqual(fill_level, fill_level_spec, delta=tolerance)
+
+    def test_how_full_returns_full_if_fill_is_majority_and_no_border(self):
+        fill = 255
+        empty = 0
+        tank_image = _generic_image()
+        tank_image.fill(fill)
+        tl = self._generic_TankLevel(fill=fill, empty=empty)
+        fill_level = tl.how_full(tank_image)
+        fill_level_spec = 1.0
+        tolerance = 0.1  # allow +/- 10%
+        self.assertAlmostEqual(fill_level, fill_level_spec, delta=tolerance)
+
+    def test_how_full_returns_full_if_fill_is_majority_and_no_border(self):
+        fill = 255
+        empty = 0
+        tank_image = _generic_image()
+        tank_image.fill(empty)
+        tl = self._generic_TankLevel(fill=fill, empty=empty)
+        fill_level = tl.how_full(tank_image)
+        fill_level_spec = 0.0
+        tolerance = 0.1  # allow +/- 10%
+        self.assertAlmostEqual(fill_level, fill_level_spec, delta=tolerance)
+
+    def test__validate_colors_raises_TypeError_unless_3_item_tuple(self):
+        only_2_colors = (1, 10)
+        tl = self._generic_TankLevel()
+        self.assertRaises(TypeError, setattr, *(tl, 'colors', only_2_colors))
+
+    def test__validate_colors_raises_ValueError_if_any_2_colors_are_equal(self):
+        same_colors = ((0, 0, 0), (0, 0, 0), (10, 10, 10))
+        tl = self._generic_TankLevel()
+        self.assertRaises(ValueError, setattr, *(tl, 'colors', same_colors))
+
+    def test__validate_colors_raises_ValueError_if_fill_or_empty_is_None(self):
+        ignore_is_None = ((0, 0, 0), (1, 1, 1), None)
+        fill_is_None = (None, (1, 1, 1), (2, 2, 2))
+        empty_is_None = ((0, 0, 0), None, (2, 2, 2))
+        tl = self._generic_TankLevel()
+        self.assertRaises(ValueError, setattr, *(tl, 'colors', fill_is_None))
+        self.assertRaises(ValueError, setattr, *(tl, 'colors', empty_is_None))
+        try:
+            tl.colors = ignore_is_None
+        except Exception as e:
+            self.fail('Unexpectedly failed to allow ignore to be None:\n{}'
+                      ''.format(e))
+
+    def _generic_TankLevel(self, fill=None, empty=None, ignore=None):
+        fill = fill if fill is not None else (0, 0, 255)
+        empty = empty if empty is not None else (0, 0, 50)
+        ignore = ignore
+        return TankLevel(fill, empty, ignore)
 
 
 class Test_screen_shot(unittest.TestCase):
@@ -194,8 +283,6 @@ class Test_Grid(unittest.TestCase):
     # Splitting an image into a grid
     def test_gridify_generates_correct_sequence_of_borders(self):
         # get the test image which is constructed as follows:
-        from os import path
-        this_path = path.abspath(path.split(__file__)[0])
         grid_image_path = path.join(this_path,
                                     'grid (tlbr padding - 1, 2, 3, 4).png')
         grid_image = cv2.imread(grid_image_path)
