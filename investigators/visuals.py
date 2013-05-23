@@ -396,7 +396,11 @@ class TemplateFinder(object):
         scene_std = _standardize_image(scene)
         scene_h, scene_w = scene_std.shape[0:2]
         matchvals_and_borders = list()
-        for (template_h, template_w), template in self._templates.items():
+        HEIGHT = 1
+        # test templates from smallest to largest to cover more earlier
+        small_to_big_templates = sorted(self._templates.items(),
+                                        key=lambda (size, templ): size[HEIGHT])
+        for (template_h, template_w), template in small_to_big_templates:
             if (template_h > scene_h) or (template_w > scene_w):
                 # skip if template too large. would cause ugly opencv error
                 continue
