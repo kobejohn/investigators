@@ -361,144 +361,221 @@ class ProportionalRegion(object):
 
 
 class TemplateFinder(object):
-    def __init__(self, template, sizes=None, mask=None,
+    def __init__(self, template, sizes=None, mask=None, scale_for_speed=1,
                  acceptable_threshold=0.5,
                  immediate_threshold=0.1):
         """
         Arguments:
         - template: valid image. See _standardize for details
         - sizes: sequence of (height, width) tuples template will be resized to
-        - mask: gray image matched height and width to template
-        - acceptable_threshold: return best match under this after all templates
-        - immediate_threshold: immediately return any match under this
-            both thresholds: 0 to 1; lower is a harder threshold to match
+        - mask: valid matched height and width to template. 0 values are masked
+        - scale_for_speed: (0, 1] optional template scale to speed up identify
+        - acceptable_threshold: lowest threshold for identifying template
+        - immediate_threshold: immediately threshold for identifying template
+            both thresholds: [0, 1]; lower is a harder threshold to match
         """
-        template_std = _standardize_image(template)
-        if mask is None:
-            mask_std = None
-        else:
-            mask_std = self._standardize_mask(mask)
-        masked = self._mask(template_std, mask_std)
-        self._templates = self._build_templates(masked, sizes)
+        self.change_parts(template=template, mask=mask,
+                          sizes=sizes, scale_for_speed=scale_for_speed)
         self.acceptable_threshold = acceptable_threshold
         self.immediate_threshold = immediate_threshold
+
+    UNCHANGED = -987654
+
+    def change_parts(self, template=UNCHANGED, mask=UNCHANGED,
+                     sizes=UNCHANGED, scale_for_speed=UNCHANGED):
+        """Change any parts provided and leave others the same before
+        rebuilding the internal mechanism for identifying the template."""
+        # template
+        if not (template is self.UNCHANGED):  # leave it if unchanged
+            self._template = _standardize_image(template)
+        # mask - a little complicated since None has meaning
+        if not (mask is self.UNCHANGED):  # leave it if unchanged
+            if mask is None:  # mask has a special case of None
+                self._mask = None
+            else:
+                self._mask = _standardize_image(mask)
+        # sizes
+        if not (sizes is self.UNCHANGED):  # leave it if unchanged
+            self._validate_sizes(sizes)
+            self._sizes = sizes
+        # scale
+        if not (scale_for_speed is self.UNCHANGED):  # leave it if unchanged
+            self._validate_scale_for_speed(scale_for_speed)
+            self._scale_for_speed = scale_for_speed or self._scale_for_speed
+        # build new templates
+        self._templates = self._build_templates()
+
+    def _validate_sizes(self, sizes):
+        """Raise an error unless None or sequence of 2-tuple numbers."""
+        if sizes is None:
+            return  # None is acceptable
+        for h, w in sizes:
+            int(round(h))
+            int(round(w))
+
+    def _validate_scale_for_speed(self, scale):
+        """Raise an error if the scale seems to be invalid."""
+        if (scale <= 0) or (1 < scale):
+            raise ValueError('Unexpectedly received a speed scale factor'
+                             ' outside of the range (0,1]: {}'.format(scale))
+
+    def _build_templates(self):
+        """Make and store sized versions of the base template.
+
+        Keys are (height, width) size tuples based on original sizes
+        Values are resized versions of the base template including speed scaling
+        """
+        # mask the base template
+        masked = self._apply_mask(self.template, self.mask)
+        # if no sizes, just use the size of the base template
+        original_h, original_w = original_size = masked.shape[0:2]
+        sizes = self.sizes or [(original_h, original_w)]
+        sized_templates = dict()
+        for base_h, base_w in sizes:
+            base_size = base_h, base_w
+            # resize the template based on the size and optional speed scaling
+            final_h = int(round(base_h * self.scale_for_speed))
+            final_w = int(round(base_w * self.scale_for_speed))
+            final_size = (final_h, final_w)
+            cv_final_size = final_w, final_h  # h/w are reversed for opencv
+            if final_size == original_size:
+                final_template = masked
+            elif final_h > original_h:
+                # cubic resize for enlargements
+                final_template = cv2.resize(masked, cv_final_size,
+                                            interpolation=cv2.INTER_CUBIC)
+            else:
+                # area interpolation for shrinking
+                final_template = cv2.resize(masked, cv_final_size,
+                                            interpolation=cv2.INTER_AREA)
+            sized_templates[base_size] = final_template
+        return sized_templates
+
+    def _apply_mask(self, image, mask):
+        """Mask the given image by applying random noise according to the mask.
+
+        Arguments:
+        image: an opencv bgr image (numpy shape (h, w, 3)). will be modified
+        mask: an opencv bgr image with (0, 0, 0) for every pixel to mask
+
+        Returns:
+        New, masked image.
+        """
+        new_image = image.copy()
+        if mask is None:
+            return new_image  # just copy if no mask
+        # prepare a noise image to be copied from
+        zeros = numpy.all(mask == 0, axis=-1)
+        # if amount_of_noise:
+        h, w, channels = new_image.shape
+        #   Credit to J.F. Sebastion on StackOverflow for the basis of the
+        #   quick random noise generator:
+        #   http://stackoverflow.com/a/5685025/377366
+        noise = numpy.frombuffer(numpy.random.bytes(h * w * channels),
+                                 dtype=numpy.uint8)
+        noise = noise.reshape(new_image.shape)
+        # apply the noise to the masked positions
+        new_image[zeros] = noise[zeros]
+        return new_image
 
     def locate_in(self, scene):
         """Return the boundaries and image of the best template/size
         match in the scene.
 
         Arguments:
-        scene_std: opencv (numpy) bgr, bgra or gray image.
+        scene_std: pil rgb or opencv (numpy) bgr, bgra or gray image.
 
         Return:
         tuple of boundaries (top, left, bottom, right) and result image
         """
+        # prepare the speed scaled and original scenes carefully
         scene_std = _standardize_image(scene)
-        scene_h, scene_w = scene_std.shape[0:2]
+        scene_original_h = scene_std.shape[0]
+        scene_original_w = scene_std.shape[1]
+        speed_scale = self.scale_for_speed
+        if speed_scale == 1:
+            scene_scaled = scene_std
+        else:
+            scene_scaled_h = int(round(scene_original_h * speed_scale))
+            scene_scaled_w = int(round(scene_original_w * speed_scale))
+            scene_scaled = cv2.resize(scene_std,
+                                      (scene_scaled_w, scene_scaled_h),
+                                      interpolation=cv2.INTER_AREA)
         matchvals_and_borders = list()
         HEIGHT = 1
         # test templates from smallest to largest to cover more earlier
         small_to_big_templates = sorted(self._templates.items(),
                                         key=lambda (size, templ): size[HEIGHT])
-        for (template_h, template_w), template in small_to_big_templates:
-            if (template_h > scene_h) or (template_w > scene_w):
+        for template_original_size, template in small_to_big_templates:
+            template_original_h, template_original_w = template_original_size
+            if (template_original_h > scene_original_h
+                    or template_original_w > scene_original_w):
                 # skip if template too large. would cause ugly opencv error
                 continue
-            result = cv2.matchTemplate(scene_std, template, cv2.TM_SQDIFF)
-            # Instead of norming that stretches the image:
+            # scale the template
+            if speed_scale == 1:
+                template_scaled_h, template_scaled_w =\
+                    template_original_h, template_original_w
+                template_scaled = template
+            else:
+                template_scaled_h = int(round(template_original_h
+                                              * speed_scale))
+                template_scaled_w = int(round(template_original_w
+                                              * speed_scale))
+                template_scaled = cv2.resize(template,
+                                             (template_scaled_w,
+                                              template_scaled_h),
+                                             interpolation=cv2.INTER_AREA)
+            result = cv2.matchTemplate(scene_scaled, template_scaled,
+                                       cv2.TM_SQDIFF)
+            # Instead of norming that stretches the correlation map:
             # norm vs the worst case square difference:
             # (worst case one pixel)^2 * (TxI overlap)
             # 255^2 * T size
-            norm = (255 ** 2) * template.shape[0] * template.shape[1]
+            norm = (255 ** 2) * template_scaled_h * template_scaled_w
             result /= float(norm)  # float just for paranoia
             min_val, max_val, (min_left, min_top), max_left_top\
                 = cv2.minMaxLoc(result)
-            bottom, right = min_top + template_h, min_left + template_w
-            rectangle = Rectangle(min_top, min_left, bottom, right)
+            # reverse the speed scaling to produce a rectangle in the original
+            top_original = int(round(float(min_top) / speed_scale))
+            left_original = int(round(float(min_left) / speed_scale))
+            bottom_original = int(round(float(min_top + template_scaled_h)
+                                        / speed_scale))
+            right_original = int(round(float(min_left + template_scaled_w)
+                                       / speed_scale))
+            rectangle = Rectangle(top_original, left_original,
+                                  bottom_original, right_original)
             if min_val < self.immediate_threshold:
                 # return immediately if immediate better than imm. threshold
                 return rectangle
             elif min_val < self.acceptable_threshold:
+                # store this result for later if it's acceptable
                 matchvals_and_borders.append((min_val, rectangle))
-        # if any acceptable matches found, then return the best one
+            else:
+                pass  # ignore this result if it's not within acceptable level
+        # after all templates, return the best match, if any
         if matchvals_and_borders:
             match_val, rectangle = min(matchvals_and_borders,
                                        key=lambda x: x[0])
             return rectangle
-        # explicitly satisfy specification to return None when failed
+        # explicitly satisfy specification to return None when failed to locate
         return None
 
-    # helper methods
-    def _standardize_mask(self, mask):
-        """Convert valid mask to numpy single-channel and black/white."""
-        # get the channels
-        try:
-            actual_channels = mask.shape[2]
-        except IndexError:
-            actual_channels = None  # grayscale doesn't have the extra item
-        except AttributeError:
-            actual_channels = -1  # it's not an numpy image
-        # try to convert to opencv Gray
-        bgr = 3
-        bgra = 4
-        gray = None
-        convertor = {bgr: (cv2.cvtColor, (mask, cv2.COLOR_BGR2GRAY)),
-                     bgra: (cv2.cvtColor, (mask, cv2.COLOR_BGRA2GRAY)),
-                     gray: (lambda x: x.copy(), (mask,))}  # copy only
-        try:
-            conversion_method, args = convertor[actual_channels]
-        except KeyError:
-            raise TypeError('Unexpected mask type:\n{}'.format(mask))
-        converted = conversion_method(*args)
-        # threshold the mask to black/white
-        nonzeros = numpy.nonzero(converted)
-        converted[nonzeros] = 255  # max out the non-zeros
-        return converted
+    @property
+    def template(self):
+        return self._template
 
-    def _mask(self, image, mask):
-        """Mask the given image by applying random noise according to the mask.
+    @property
+    def mask(self):
+        return self._mask
 
-        Arguments:
-        image: an opencv bgr image (numpy shape (h, w, 3)). will be modified
-        mask: an opencv single-channel image (numpy shape (h, w))
-              with 0 for every pixel to be masked in image
+    @property
+    def sizes(self):
+        return self._sizes
 
-        Returns:
-        The original image object is modified and also returned
-        """
-        if mask is None:
-            return image  # passthrough if no mask
-        # prepare a sequence of noise the same size as the masked area
-        #   Credit to J.F. Sebastion on StackOverflow for the basis of the
-        #   quick random noise generator:
-        #   http://stackoverflow.com/a/5685025/377366
-        zeros = numpy.where(mask == 0)
-        amount_of_noise = len(zeros[0])  # x and y are in two arrays so pick one
-        channels = 3
-        noise = numpy.frombuffer(numpy.random.bytes(channels * amount_of_noise),
-                                 dtype=numpy.uint8)
-        noise = noise.reshape((-1, channels))
-        # apply the noise to the masked positions
-        image[zeros] = noise
-        return image
-
-    def _build_templates(self, image, height_widths):
-        """Make sized versions of the base image and store them in a dict.
-
-        Size keys are (height, width) tuples
-        """
-        sized_templates = dict()
-        if not height_widths:
-            # if no height_widths provided, use the original image size
-            h, w = image.shape[0:2]
-            sized_templates[(h, w)] = image
-        else:
-            for h, w in height_widths:
-                cv2_size = (w, h)  # reverse of numpy for cv2 coordinates
-                resized = cv2.resize(image, cv2_size,
-                                     interpolation=cv2.INTER_AREA)
-                sized_templates[(h, w)] = resized
-        return sized_templates
+    @property
+    def scale_for_speed(self):
+        return self._scale_for_speed
 
 
 # Helper functions

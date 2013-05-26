@@ -361,63 +361,175 @@ class Test_ProportionalRegion(unittest.TestCase):
 
 class Test_TemplateFinder(unittest.TestCase):
     # Initialization
-    def test___init___standardizes_template(self):
-        img = _generic_image()
+    def test___init___changes_parts_with_templ_mask_sizes_scale(self):
+        template = _generic_image()
         mask = _generic_image()
-        with patch.object(visuals, '_standardize_image') as m_stdize:
-            m_stdize.return_value = _generic_image(channels=3)
-            TemplateFinder(img, mask=mask)
-        m_stdize.assert_called_with(img)
+        sizes = ((10, 20),)
+        scale = .9876
+        kwargs = {'template': template,
+                  'mask': mask,
+                  'sizes': sizes,
+                  'scale_for_speed': scale}
+        with patch.object(TemplateFinder, 'change_parts') as m_change_parts:
+            self._generic_TemplateFinder(**kwargs)
+        self.assertIsNone(m_change_parts.assert_called_with(**kwargs))
 
-    def test___init___standardizes_mask(self):
-        img = _generic_image()
-        mask = _generic_image()
-        with patch.object(TemplateFinder, '_standardize_mask') as m_stdize:
-            m_stdize.return_value = _generic_image(channels=None)
-            TemplateFinder(img, mask=mask)
-        m_stdize.assert_called_with(mask)
+    def test_change_parts_standardizes_template_and_mask(self):
+        tf = self._generic_TemplateFinder()
+        with patch.object(visuals, '_standardize_image') as m_standardize:
+            m_standardize.return_value = _generic_image()
+            template = _generic_image()
+            mask = _generic_image()
+            tf.change_parts(template=template, mask=mask)
+        self.assertEqual(m_standardize.call_count, 2)
 
-    def test___init___stores_original_size_if_no_sizes_provided(self):
-        h, w = size_key = 20, 10
-        img = _generic_image(height=h, width=w)
-        imgf = TemplateFinder(img)
-        self.assertTrue(size_key in imgf._templates)
+    def test_change_parts_validates_sizes(self):
+        tf = self._generic_TemplateFinder()
+        with patch.object(tf, '_validate_sizes') as m_validate:
+            sizes = ((20, 10), (30, 20))
+            tf.change_parts(sizes=sizes)
+        self.assertIsNone(m_validate.assert_any_call(sizes))
 
-    def test___init___applies_an_optional_mask_to_image(self):
-        img = _generic_image()
-        mask = _generic_image()
-        with patch.object(TemplateFinder, '_mask') as m_mask:
-            m_mask.return_value = _generic_image(channels=3)
-            TemplateFinder(img, mask=mask)
-        m_mask.assert_called()
+    def test_change_parts_validates_scale(self):
+        tf = self._generic_TemplateFinder()
+        with patch.object(tf, '_validate_scale_for_speed') as m_validate:
+            scale = 0.54321
+            tf.change_parts(scale_for_speed=scale)
+        self.assertIsNone(m_validate.assert_any_call(scale))
 
-    # Internal templates
-    def test_internal_template_dict_keys_are_int_tuples_of_height_width(self):
-        height_spec, width_spec = 10, 20
-        imgf = self._generic_ImageFinder(height=height_spec, width=width_spec,
-                                         sizes=None)
-        for height, width in imgf._templates.keys():
-            self.assertIs(height, height_spec)
-            self.assertIs(width, width_spec)
+    def test_change_parts_builds_new_templates(self):
+        tf = self._generic_TemplateFinder()
+        with patch.object(tf, '_build_templates') as m_build:
+            tf.change_parts(scale_for_speed=0.54321)
+        self.assertIsNone(m_build.assert_called_with())
 
-    def test_internal_template_dict_has_a_bgr_template_per_size(self):
-        imgf = self._generic_ImageFinder()
-        bgr_channels = 3
-        for (rows, cols), template in imgf._templates.items():
-            size_spec = (rows, cols, bgr_channels)
-            self.assertSequenceEqual(template.shape, size_spec)
+    def test_change_parts_sets_template_mask_sizes_and_scale(self):
+        tf = self._generic_TemplateFinder()
+        original_template = tf.template
+        original_mask = tf.mask
+        original_sizes = tf.sizes
+        original_scale = tf.scale_for_speed
+        tf.change_parts(template=_generic_image(), mask=_generic_image(),
+                        sizes=((20, 10),), scale_for_speed=0.1234)
+        # confirm that all the parts have changed
+        self.assertIsNot(tf.template, original_template)
+        self.assertIsNot(tf.mask, original_mask)
+        self.assertIsNot(tf.sizes, original_sizes)
+        self.assertIsNot(tf.scale_for_speed, original_scale)
+
+    def test_template_and_mask_and_sizes_and_scale_are_read_only(self):
+        tf = self._generic_TemplateFinder()
+        read_only_names = ('template', 'mask', 'sizes', 'scale_for_speed')
+        for name in read_only_names:
+            self.assertRaises(AttributeError, setattr, *(tf, name, 1))
+
+    def test__validate_scale_raises_ValueError_if_lte_0_or_gt_1(self):
+        tf = self._generic_TemplateFinder()
+        zero = 0
+        negative = -0.5
+        over_one = 1.1
+        ok = 0.5
+        try:
+            tf._validate_scale_for_speed(ok)
+        except Exception as e:
+            self.fail('Unexpectedly failed with a valid scale {}:\n{}'
+                      ''.format(ok, e))
+        for bad_scale in (zero, negative, over_one):
+            self.assertRaises(ValueError,
+                              tf._validate_scale_for_speed, bad_scale)
+
+    def test__build_templates_applies_the_mask_to_the_base_template(self):
+        tf = self._generic_TemplateFinder()
+        template = tf.template
+        mask = tf.mask
+        with patch.object(tf, '_apply_mask') as m_apply_mask:
+            m_apply_mask.return_value = _generic_image()
+            tf._build_templates()
+        self.assertIsNone(m_apply_mask.assert_called_with(*(template, mask)))
+
+    def test__mask_puts_noise_on_masked_locations(self):
+        h, w = 20, 10
+        # make a special white image with values over random range
+        high_value = 1000
+        white = numpy.ndarray((h, w, 3), dtype=numpy.uint16)
+        white.fill(high_value)
+        # make a mask with zeros at specified positions
+        mask = numpy.ndarray((h, w, 3), dtype=numpy.uint8)
+        mask.fill(255)
+        masked_positions = [(0, 0), (5, 5)]
+        for p in masked_positions:
+            mask[p] = 0
+        # use a generic image finder to test _mask
+        tf = self._generic_TemplateFinder()
+        masked_white = tf._apply_mask(white, mask)
+        for p in masked_positions:
+            masked_pixel = masked_white[p]
+            # confirm all noise pixels have been changed
+            self.assertTrue(numpy.all(masked_pixel != high_value))
+
+    def test__build_templates_scales_the_masked_template(self):
+        new_h, new_w = 3, 4
+        tf = self._generic_TemplateFinder(sizes=((new_h, new_w),))
+        with patch.object(tf, '_apply_mask') as m_apply_mask:
+            m_apply_mask.return_value = masked_image = _generic_image()
+            with patch.object(cv2, 'resize') as m_resize:
+                tf._build_templates()
+        args = (masked_image, (new_w, new_h))
+        kwargs = {'interpolation': cv2.INTER_AREA}
+        self.assertIsNone(m_resize.assert_called_with(*args, **kwargs))
+
+    def test__validate_sizes_allows_None_and_2_real_tuple_sequences_only(self):
+        none = None
+        sequence_with_2_tuples = ((1, 2), (3, 4))
+        sequence_with_2_tuple_floats = ((1.0, 2.0), (3.0, 4.0))
+        sequence_with_3_tuple = ((1, 3, 3),)
+        no_sequence_2_tuple = (1, 2)
+        ok = (none, sequence_with_2_tuples, sequence_with_2_tuple_floats)
+        bad = (sequence_with_3_tuple, no_sequence_2_tuple)
+        tf = self._generic_TemplateFinder()
+        for ok_sizes in ok:
+            try:
+                tf._validate_sizes(ok_sizes)
+            except Exception as e:
+                self.fail('Unexpectedly failed to validate valid sizes:{}\n{}'
+                          ''.format(ok_sizes, e))
+        for bad_sizes in bad:
+            self.assertRaises(Exception, tf._validate_sizes, bad_sizes)
+
+    def test__build_templates_stores_scaled_templates_under_original_size(self):
+        sizes_spec = ((10, 20), (30, 40))
+        scale = 0.5
+        tf = self._generic_TemplateFinder(sizes=sizes_spec,
+                                          scale_for_speed=scale)
+        # confirm that the stored template keys are not scaled
+        self.assertItemsEqual(tf._templates.keys(), sizes_spec)
 
     # Locating templates in a scene:
     def test_locate_in_standardizes_the_scene_image(self):
-        # setup the image finder
-        template = _generic_image(height=2, width=2)
-        imgf = TemplateFinder(template, sizes=None)
+        tf = self._generic_TemplateFinder()
         # confirm standardize is called when analyzing a scene
-        scene = _generic_image(height=100, width=100)
+        scene = _generic_image()
         with patch.object(visuals, '_standardize_image') as m_stdize:
             m_stdize.return_value = _generic_image(channels=3)
-            imgf.locate_in(scene)
-        m_stdize.assert_called_with(scene)
+            tf.locate_in(scene)
+        self.assertIsNone(m_stdize.assert_called_with(scene))
+
+    def test_locate_in_scales_the_scene_by_scale_for_speed(self):
+        scene_base_h, scene_base_w = 300, 400
+        scale = 0.5
+        tf = self._generic_TemplateFinder(scale_for_speed=scale)
+        with patch.object(visuals, '_standardize_image') as m_stdize:
+            # make a standardized scene of the base size
+            # that sould be resized by the scale to the specified size
+            scene_std = _generic_image(width=scene_base_w, height=scene_base_h)
+            m_stdize.return_value = scene_std
+            with patch.object(cv2, 'resize') as m_resize:
+                m_resize.return_value = _generic_image()
+                tf.locate_in(_generic_image())
+        final_h, final_w = (150, 200)
+        args = (scene_std, (final_w, final_h))
+        kwargs = {'interpolation': cv2.INTER_AREA}
+        self.assertIsNone(m_resize.assert_any_call(*args, **kwargs))
 
     def test_locate_returns_None_if_no_internal_templates_found_in_scene(self):
         # setup a template and scene that should be guaranteed not to be matched
@@ -425,8 +537,8 @@ class Test_TemplateFinder(unittest.TestCase):
         black_template.fill(0)
         white_scene = _generic_image(height=20, width=20)
         white_scene.fill(255)
-        imgf = TemplateFinder(black_template)
-        p = imgf.locate_in(white_scene)
+        tf = TemplateFinder(black_template)
+        p = tf.locate_in(white_scene)
         self.assertIsNone(p)
 
     def test_locate_returns_result_at_end_when_immediate_not_passed(self):
@@ -444,10 +556,10 @@ class Test_TemplateFinder(unittest.TestCase):
         # setup thresholds to exercise the spec
         impossible = -1
         always = 2
-        imgf = TemplateFinder(black_template,
-                              acceptable_threshold=always,
-                              immediate_threshold=impossible)
-        borders = imgf.locate_in(white_scene)
+        tf = TemplateFinder(black_template,
+                            acceptable_threshold=always,
+                            immediate_threshold=impossible)
+        borders = tf.locate_in(white_scene)
         self.assertEqual(borders,
                          (top_spec, left_spec, bottom_spec, right_spec))
 
@@ -466,69 +578,35 @@ class Test_TemplateFinder(unittest.TestCase):
         # setup thresholds to exercise the spec
         impossible = -1
         always = 2
-        imgf = TemplateFinder(black_template,
-                              acceptable_threshold=impossible,
-                              immediate_threshold=always)
+        tf = TemplateFinder(black_template, acceptable_threshold=impossible,
+                            immediate_threshold=always)
         # confirm the result
-        borders = imgf.locate_in(white_scene)
+        borders = tf.locate_in(white_scene)
         self.assertEqual(borders,
                          (top_spec, left_spec, bottom_spec, right_spec))
 
     def test_locate_in_ignores_templates_too_big_for_the_scene(self):
         # setup an image finder with only a large size for template
         large_h, large_w = 100, 200
-        imgf = self._generic_ImageFinder(sizes=((large_h, large_w),))
+        tf = self._generic_TemplateFinder(sizes=((large_h, large_w),))
         # setup a scene smaller than the large size template
         small_h, small_w = large_h - 20, large_w - 20
         small_scene = _generic_image(height=small_h, width=small_w)
         # confirm that matchTemplate is not called
         with patch.object(cv2, 'matchTemplate') as m_match:
             m_match.return_value = _generic_image(channels=None)
-            imgf.locate_in(small_scene)
+            tf.locate_in(small_scene)
         self.assertFalse(m_match.called)
 
-    # Internal specifications
-    def test__standardize_mask_raise_TypeError_unless_bgr_bgra_or_gry(self):
-        bgr = _generic_image(channels=3)
-        bgra = _generic_image(channels=4)
-        gray = _generic_image(channels=None)
-        unhandled_channel_count = _generic_image(channels=2)
-        just_a_string = 'whut'
-        # confirm the bad one fails
-        imgf = self._generic_ImageFinder()
-        self.assertRaises(TypeError, imgf._standardize_mask,
-                          unhandled_channel_count)
-        self.assertRaises(TypeError, imgf._standardize_mask,
-                          just_a_string)
-        # confirm the valid ones don't fail
-        for ok_img in (bgr, bgra, gray):
-            imgf._standardize_mask(ok_img)
-
-    def test__mask_puts_noise_on_masked_locations(self):
-        h, w = 20, 10
-        # make a special white image with values over random range
-        high_value = 1000
-        white = numpy.ndarray((h, w, 3), dtype=numpy.uint16)
-        white.fill(high_value)
-        # make a mask with zeros at specified positions
-        mask = numpy.ndarray((h, w), dtype=numpy.uint8)
-        mask.fill(255)
-        masked_positions = [(0, 0), (5, 5)]
-        for p in masked_positions:
-            mask[p] = 0
-        # use a generic image finder to test _mask
-        imgf = self._generic_ImageFinder()
-        masked_white = imgf._mask(white, mask)
-        for p in masked_positions:
-            masked_pixel = masked_white[p]
-            # confirm all noise pixels have been changed
-            self.assertTrue(numpy.all(masked_pixel != high_value))
-
-    def _generic_ImageFinder(self, height=None, width=None,
-                             channels=None, sizes=None):
-        img = _generic_image(height=height, width=width, channels=channels)
-        sizes = sizes
-        return TemplateFinder(img, sizes=sizes)
+    def _generic_TemplateFinder(self, template=None, mask=None,
+                                sizes=None, scale_for_speed=1,
+                                acceptable_threshold=0.5,
+                                immediate_threshold=0.1):
+        template = template if template is not None else _generic_image()
+        return TemplateFinder(template, mask=mask,
+                              sizes=sizes, scale_for_speed=scale_for_speed,
+                              acceptable_threshold=acceptable_threshold,
+                              immediate_threshold=immediate_threshold)
 
 
 class Test_Helpers(unittest.TestCase):
