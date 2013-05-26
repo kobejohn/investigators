@@ -38,7 +38,8 @@ This can be found in tests/manual/.
     template = cv2.imread('game 640x480.png')
     mask = cv2.imread('game mask 640x480.png')
     possible_sizes = (600, 800), (240, 320)
-    finder = TemplateFinder(template, sizes=possible_sizes, mask=mask)
+    finder = TemplateFinder(template, sizes=possible_sizes, mask=mask,
+                            scale_for_speed=0.25)
     t, l, b, r = finder.locate_in(screenshot)
     game = screenshot[t:b, l:r]
     cv2.destroyWindow('screenshot')
