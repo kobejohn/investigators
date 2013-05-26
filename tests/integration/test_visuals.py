@@ -15,23 +15,7 @@ this_path = path.abspath(path.split(__file__)[0])
 
 
 class Test_TankLevel(unittest.TestCase):
-    def test_setting_region_colors_validates_them(self):
-        colors = fill, empty, ignore = (0, 0, 0), (10, 10, 10), (20, 20, 20)
-        tl = self._generic_TankLevel(fill=fill, empty=empty, ignore=ignore)
-        with patch.object(tl, '_validate_colors') as m_validate:
-            tl.colors = fill, empty, ignore
-        self.assertIsNone(m_validate.assert_called_with(colors))
-
-    def test_how_full_standardizes_tank_image(self):
-        # setup the image identifier
-        tl = self._generic_TankLevel()
-        # confirm standardize is called when measuring the tank
-        image = _generic_image()
-        with patch.object(visuals, '_standardize_image') as m_stdize:
-            m_stdize.return_value = _generic_image(channels=3)
-            tl.how_full(image)
-        self.assertIsNone(m_stdize.assert_called_with(image))
-
+    # Primary behavior specification
     def test_how_full_returns_approximatelly_correct_fill_level(self):
         tank_image = cv2.imread(path.join(this_path, 'health bar 77%.png'))
         self.assertIsNotNone(tank_image)  # to avoid confusing errors
@@ -66,6 +50,24 @@ class Test_TankLevel(unittest.TestCase):
         tolerance = 0.1  # allow +/- 10%
         self.assertAlmostEqual(fill_level, fill_level_spec, delta=tolerance)
 
+    # Configuration / Internal specification
+    def test_how_full_standardizes_tank_image(self):
+        # setup the image identifier
+        tl = self._generic_TankLevel()
+        # confirm standardize is called when measuring the tank
+        image = _generic_image()
+        with patch.object(visuals, '_standardize_image') as m_stdize:
+            m_stdize.return_value = _generic_image(channels=3)
+            tl.how_full(image)
+        self.assertIsNone(m_stdize.assert_called_with(image))
+
+    def test_setting_region_colors_validates_them(self):
+        colors = fill, empty, ignore = (0, 0, 0), (10, 10, 10), (20, 20, 20)
+        tl = self._generic_TankLevel(fill=fill, empty=empty, ignore=ignore)
+        with patch.object(tl, '_validate_colors') as m_validate:
+            tl.colors = fill, empty, ignore
+        self.assertIsNone(m_validate.assert_called_with(colors))
+
     def test__validate_colors_raises_TypeError_unless_3_item_tuple(self):
         only_2_colors = (1, 10)
         tl = self._generic_TankLevel()
@@ -97,6 +99,7 @@ class Test_TankLevel(unittest.TestCase):
 
 
 class Test_screen_shot(unittest.TestCase):
+    # Primary behavior specification
     def test_screen_shot_gets_an_image_with_same_resolution_as_screen(self):
         # thanks to jcao219 for the python-only way to get screen resolution
         # http://stackoverflow.com/a/3129524/377366
@@ -108,6 +111,7 @@ class Test_screen_shot(unittest.TestCase):
         ss_h_w = screen_shot.shape[0:2]
         self.assertEqual(ss_h_w, ss_h_w_spec)
 
+    # Configuration / Internal specification
     def test_screen_shot_standardizes_the_screen_image(self):
         import ImageGrab
         with patch.object(ImageGrab, 'grab') as m_grab:
@@ -119,37 +123,7 @@ class Test_screen_shot(unittest.TestCase):
 
 
 class Test_ImageIdentifier(unittest.TestCase):
-    def test___init___standardizes_all_templates(self):
-        # produce some templates
-        image = _generic_image()
-        templates = {'some_template': image}
-        with patch.object(visuals, '_standardize_image') as m_stdize:
-            m_stdize.return_value = _generic_image(channels=3)
-            ImageIdentifier(templates)
-        self.assertIsNone(m_stdize.assert_called_with(image))
-
-    def test_identify_standardizes_image(self):
-        # setup the image identifier
-        ii = self._generic_ImageIdentifier()
-        # confirm standardize is called when identifying an image
-        image = _generic_image()
-        with patch.object(visuals, '_standardize_image') as m_stdize:
-            m_stdize.return_value = _generic_image(channels=3)
-            ii.identify(image)
-        self.assertIsNone(m_stdize.assert_called_with(image))
-
-    def test_identify_equalizes_template_and_image_sizes(self):
-        template = _generic_image()
-        templates = {'some_template': template}
-        ii = self._generic_ImageIdentifier(templates=templates)
-        image = _generic_image()
-        with patch.object(ii, '_equalize') as m_equalize:
-            m_equalize.return_value = (_generic_image(channels=3),) * 2
-            ii.identify(image)
-        # bare mock assertions are dangerous. without confirmation, could just
-        # be mispelled
-        self.assertIs(m_equalize.called, True)
-
+    # Primary behavior specification
     def test_identify_returns_None_if_no_qualifying_match_found(self):
         # create a template and image that are bad matches
         template = _generic_image()
@@ -196,7 +170,39 @@ class Test_ImageIdentifier(unittest.TestCase):
         best_match = ii.identify(image)
         self.assertEqual(best_match, template_name)
 
-    def test__equalize_sizes_shrinks_large_template_to_fit_in_image(self):
+    # Configuration / Internal specification
+    def test___init___standardizes_all_templates(self):
+        # produce some templates
+        image = _generic_image()
+        templates = {'some_template': image}
+        with patch.object(visuals, '_standardize_image') as m_stdize:
+            m_stdize.return_value = _generic_image(channels=3)
+            ImageIdentifier(templates)
+        self.assertIsNone(m_stdize.assert_called_with(image))
+
+    def test_identify_standardizes_image(self):
+        # setup the image identifier
+        ii = self._generic_ImageIdentifier()
+        # confirm standardize is called when identifying an image
+        image = _generic_image()
+        with patch.object(visuals, '_standardize_image') as m_stdize:
+            m_stdize.return_value = _generic_image(channels=3)
+            ii.identify(image)
+        self.assertIsNone(m_stdize.assert_called_with(image))
+
+    def test_identify_equalizes_template_and_image_sizes(self):
+        template = _generic_image()
+        templates = {'some_template': template}
+        ii = self._generic_ImageIdentifier(templates=templates)
+        image = _generic_image()
+        with patch.object(ii, '_equalize') as m_equalize:
+            m_equalize.return_value = (_generic_image(channels=3),) * 2
+            ii.identify(image)
+        # bare mock assertions are dangerous. without confirmation, could just
+        # be mispelled
+        self.assertIs(m_equalize.called, True)
+
+    def test__equalize_shrinks_large_template_to_fit_in_image(self):
         template_h, template_w = 15, 100
         image_h, image_w = small_image_size = 20, 20
         shrunk_template_size_spec = 3, 20  # 15/5, 100/5
@@ -210,7 +216,7 @@ class Test_ImageIdentifier(unittest.TestCase):
         self.assertEqual(equalized_template_size, shrunk_template_size_spec)
         self.assertEqual(equalized_image_size, small_image_size)
 
-    def test__equalize_sizes_shrinks_large_image_so_that_template_fits(self):
+    def test__equalize_shrinks_large_image_so_that_template_fits(self):
         template_h, template_w = original_template_size = 5, 10
         image_h, image_w = 20, 100
         shrunk_image_size_spec = 5, 25  # 20/4, 100/4
@@ -234,39 +240,7 @@ class Test_ImageIdentifier(unittest.TestCase):
 
 
 class Test_Grid(unittest.TestCase):
-    # Initialization
-    def test___init___sets_grid_dimensions(self):
-        some_dimensions = _generic_dimensions()
-        g = self._generic_grid(dimensions=some_dimensions)
-        self.assertEqual(g.dimensions, some_dimensions)
-
-    def test___init___sets_cell_padding(self):
-        padding = self._generic_padding()
-        g = self._generic_grid(cell_padding=padding)
-        self.assertEqual(g.cell_padding, padding)
-
-    # Configuration
-    def test_setting_dimensions_validates_them(self):
-        some_dimensions = (5, 7)
-        other_dimensions = (11, 13)
-        g = self._generic_grid(dimensions=some_dimensions)
-        with patch.object(visuals, '_validate_dimensions') as m_validate:
-            g.dimensions = other_dimensions
-        self.assertIsNone(m_validate.assert_called_with(other_dimensions))
-
-    def test_seting_cell_padding_validates_padding_converted_to_rectangle(self):
-        cell_padding_1 = (0, .1, .2, .3)
-        cell_padding_2 = p_top, p_left, p_bottom, p_right = (.1, .2, 0, .1)
-        # this is the specification of how padding is converted to a rectangle
-        padded_cell_2 = visuals.Rectangle(p_top, p_left,
-                                          1 - p_bottom, 1 - p_right)
-        g = self._generic_grid(cell_padding=cell_padding_1)
-        # Set *new* padding and make sure the validation is called
-        with patch.object(visuals, '_validate_proportions') as m_validate:
-            g.cell_padding = cell_padding_2
-        self.assertIsNone(m_validate.assert_called_with(padded_cell_2))
-
-    # Splitting an image into a grid
+    # Primary behavior specification
     def test_gridify_generates_correct_sequence_of_borders(self):
         # get the test image which is constructed as follows:
         grid_image_path = path.join(this_path,
@@ -314,32 +288,45 @@ class Test_Grid(unittest.TestCase):
                                     '\n{}'.format(grid_position, image_pixel,
                                                   spec_pixel))
 
+    # Configuration / Internal specification
+    def test___init___sets_grid_dimensions(self):
+        some_dimensions = (5, 7)
+        g = self._generic_grid(dimensions=some_dimensions)
+        self.assertEqual(g.dimensions, some_dimensions)
+
+    def test___init___sets_cell_padding(self):
+        padding = (0.1, 0.2, 0.3, 0.4)
+        g = self._generic_grid(cell_padding=padding)
+        self.assertEqual(g.cell_padding, padding)
+
+    def test_setting_dimensions_validates_them(self):
+        some_dimensions = (5, 7)
+        other_dimensions = (11, 13)
+        g = self._generic_grid(dimensions=some_dimensions)
+        with patch.object(visuals, '_validate_dimensions') as m_validate:
+            g.dimensions = other_dimensions
+        self.assertIsNone(m_validate.assert_called_with(other_dimensions))
+
+    def test_seting_cell_padding_validates_padding_converted_to_rectangle(self):
+        cell_padding_1 = (0, .1, .2, .3)
+        cell_padding_2 = p_top, p_left, p_bottom, p_right = (.1, .2, 0, .1)
+        # this is the specification of how padding is converted to a rectangle
+        padded_cell_2 = visuals.Rectangle(p_top, p_left,
+                                          1 - p_bottom, 1 - p_right)
+        g = self._generic_grid(cell_padding=cell_padding_1)
+        # Set *new* padding and make sure the validation is called
+        with patch.object(visuals, '_validate_proportions') as m_validate:
+            g.cell_padding = cell_padding_2
+        self.assertIsNone(m_validate.assert_called_with(padded_cell_2))
+
     def _generic_grid(self, dimensions=None, cell_padding=None):
         dimensions = dimensions or (5, 7)
         cell_padding = cell_padding or (0.1, 0.3, 0.5, 0.7)
         return Grid(dimensions, cell_padding)
 
-    def _generic_padding(self, top=0.1, left=0.2, bottom=0.3, right=0.4):
-        return top, left, bottom, right
-
 
 class Test_ProportionalRegion(unittest.TestCase):
-    # Initialization
-    def test___init___sets_proportions(self):
-        some_proportions = _generic_proportions()
-        pr = ProportionalRegion(some_proportions)
-        self.assertEqual(pr.proportions, some_proportions)
-
-    # Configuration
-    def test_seting_proportions_validates_them(self):
-        some_proportions = (0, .1, .2, .3)
-        other_proportions = (.4, .5, .6, .7)
-        pr = ProportionalRegion(some_proportions)
-        with patch.object(visuals, '_validate_proportions') as m_validate:
-            pr.proportions = other_proportions
-        self.assertIsNone(m_validate.assert_called_with(other_proportions))
-
-    # Returning the window
+    # Primary behavior specification
     def test_region_in_returns_correct_borders(self):
         # create an image to work with
         h, w = 100, 200
@@ -358,9 +345,78 @@ class Test_ProportionalRegion(unittest.TestCase):
         border_pixels = pr.region_in(image)
         self.assertEqual(border_pixels, border_pixels_spec)
 
+    # Configuration / Internal specification
+    def test___init___sets_proportions(self):
+        some_proportions = _generic_proportions()
+        pr = ProportionalRegion(some_proportions)
+        self.assertEqual(pr.proportions, some_proportions)
+
+    def test_seting_proportions_validates_them(self):
+        some_proportions = (0, .1, .2, .3)
+        other_proportions = (.4, .5, .6, .7)
+        pr = ProportionalRegion(some_proportions)
+        with patch.object(visuals, '_validate_proportions') as m_validate:
+            pr.proportions = other_proportions
+        self.assertIsNone(m_validate.assert_called_with(other_proportions))
+
 
 class Test_TemplateFinder(unittest.TestCase):
-    # Initialization
+    # Primary behavior specification
+    def test_locate_returns_None_if_no_internal_templates_found_in_scene(self):
+        # setup a template and scene that should be guaranteed not to be matched
+        black_template = _generic_image(height=5, width=10)
+        black_template.fill(0)
+        white_scene = _generic_image(height=20, width=20)
+        white_scene.fill(255)
+        tf = TemplateFinder(black_template)
+        p = tf.locate_in(white_scene)
+        self.assertIsNone(p)
+
+    def test_locate_returns_result_at_end_when_immediate_not_passed(self):
+        top_spec, left_spec, bottom_spec, right_spec = 2, 3, 22, 33
+        height_spec = bottom_spec - top_spec
+        width_spec = right_spec - left_spec
+        black_template = _generic_image(height=height_spec,
+                                        width=width_spec)
+        black_template.fill(0)
+        white_scene = _generic_image(height=height_spec * 3,
+                                     width=width_spec * 3)
+        white_scene.fill(255)
+        # set a black square to match the template
+        white_scene[top_spec:bottom_spec, left_spec:right_spec] = 0
+        # setup thresholds to exercise the spec
+        impossible = -1
+        always = 2
+        tf = TemplateFinder(black_template,
+                            acceptable_threshold=always,
+                            immediate_threshold=impossible)
+        borders = tf.locate_in(white_scene)
+        self.assertEqual(borders,
+                         (top_spec, left_spec, bottom_spec, right_spec))
+
+    def test_locate_returns_result_immediately_when_immediate_passes(self):
+        top_spec, left_spec, bottom_spec, right_spec = 2, 3, 22, 33
+        height_spec = bottom_spec - top_spec
+        width_spec = right_spec - left_spec
+        black_template = _generic_image(height=height_spec,
+                                        width=width_spec)
+        black_template.fill(0)
+        white_scene = _generic_image(height=height_spec * 3,
+                                     width=width_spec * 3)
+        white_scene.fill(255)
+        # set a black square to match the template
+        white_scene[top_spec:bottom_spec, left_spec:right_spec] = 0
+        # setup thresholds to exercise the spec
+        impossible = -1
+        always = 2
+        tf = TemplateFinder(black_template, acceptable_threshold=impossible,
+                            immediate_threshold=always)
+        # confirm the result
+        borders = tf.locate_in(white_scene)
+        self.assertEqual(borders,
+                         (top_spec, left_spec, bottom_spec, right_spec))
+
+    # Configuration / Internal specification
     def test___init___changes_parts_with_templ_mask_sizes_scale(self):
         template = _generic_image()
         mask = _generic_image()
@@ -504,7 +560,6 @@ class Test_TemplateFinder(unittest.TestCase):
         # confirm that the stored template keys are not scaled
         self.assertItemsEqual(tf._templates.keys(), sizes_spec)
 
-    # Locating templates in a scene:
     def test_locate_in_standardizes_the_scene_image(self):
         tf = self._generic_TemplateFinder()
         # confirm standardize is called when analyzing a scene
@@ -531,60 +586,6 @@ class Test_TemplateFinder(unittest.TestCase):
         kwargs = {'interpolation': cv2.INTER_AREA}
         self.assertIsNone(m_resize.assert_any_call(*args, **kwargs))
 
-    def test_locate_returns_None_if_no_internal_templates_found_in_scene(self):
-        # setup a template and scene that should be guaranteed not to be matched
-        black_template = _generic_image(height=5, width=10)
-        black_template.fill(0)
-        white_scene = _generic_image(height=20, width=20)
-        white_scene.fill(255)
-        tf = TemplateFinder(black_template)
-        p = tf.locate_in(white_scene)
-        self.assertIsNone(p)
-
-    def test_locate_returns_result_at_end_when_immediate_not_passed(self):
-        top_spec, left_spec, bottom_spec, right_spec = 2, 3, 22, 33
-        height_spec = bottom_spec - top_spec
-        width_spec = right_spec - left_spec
-        black_template = _generic_image(height=height_spec,
-                                        width=width_spec)
-        black_template.fill(0)
-        white_scene = _generic_image(height=height_spec * 3,
-                                     width=width_spec * 3)
-        white_scene.fill(255)
-        # set a black square to match the template
-        white_scene[top_spec:bottom_spec, left_spec:right_spec] = 0
-        # setup thresholds to exercise the spec
-        impossible = -1
-        always = 2
-        tf = TemplateFinder(black_template,
-                            acceptable_threshold=always,
-                            immediate_threshold=impossible)
-        borders = tf.locate_in(white_scene)
-        self.assertEqual(borders,
-                         (top_spec, left_spec, bottom_spec, right_spec))
-
-    def test_locate_returns_result_immediately_when_immediate_passes(self):
-        top_spec, left_spec, bottom_spec, right_spec = 2, 3, 22, 33
-        height_spec = bottom_spec - top_spec
-        width_spec = right_spec - left_spec
-        black_template = _generic_image(height=height_spec,
-                                        width=width_spec)
-        black_template.fill(0)
-        white_scene = _generic_image(height=height_spec * 3,
-                                     width=width_spec * 3)
-        white_scene.fill(255)
-        # set a black square to match the template
-        white_scene[top_spec:bottom_spec, left_spec:right_spec] = 0
-        # setup thresholds to exercise the spec
-        impossible = -1
-        always = 2
-        tf = TemplateFinder(black_template, acceptable_threshold=impossible,
-                            immediate_threshold=always)
-        # confirm the result
-        borders = tf.locate_in(white_scene)
-        self.assertEqual(borders,
-                         (top_spec, left_spec, bottom_spec, right_spec))
-
     def test_locate_in_ignores_templates_too_big_for_the_scene(self):
         # setup an image finder with only a large size for template
         large_h, large_w = 100, 200
@@ -609,7 +610,7 @@ class Test_TemplateFinder(unittest.TestCase):
                               immediate_threshold=immediate_threshold)
 
 
-class Test_Helpers(unittest.TestCase):
+class Test_Module_Helpers(unittest.TestCase):
     def test__validate_proportions_raises_ValueError_if_opp_borders_rvrsd(self):
         v = 0.5
         left_right_same = _generic_proportions(left=v, right=v)
@@ -672,11 +673,6 @@ def _generic_proportions(top=None, left=None, bottom=None, right=None):
     right = right if right is not None else 0.7
     return top, left, bottom, right
 
-
-def _generic_dimensions(rows=None, cols=None):
-    rows = rows if rows is not None else 5
-    cols = cols if cols is not None else 7
-    return rows, cols
 
 if __name__ == '__main__':
     pass
