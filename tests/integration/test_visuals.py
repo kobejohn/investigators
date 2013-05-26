@@ -20,8 +20,6 @@ class Test_TankLevel(unittest.TestCase):
         tl = self._generic_TankLevel(fill=fill, empty=empty, ignore=ignore)
         with patch.object(tl, '_validate_colors') as m_validate:
             tl.colors = fill, empty, ignore
-        # bare mock assertions are dangerous. without confirmation, could just
-        # be mispelled
         self.assertIsNone(m_validate.assert_called_with(colors))
 
     def test_how_full_standardizes_tank_image(self):
@@ -32,8 +30,6 @@ class Test_TankLevel(unittest.TestCase):
         with patch.object(visuals, '_standardize_image') as m_stdize:
             m_stdize.return_value = _generic_image(channels=3)
             tl.how_full(image)
-        # bare mock assertions are dangerous. without confirmation, could just
-        # be mispelled
         self.assertIsNone(m_stdize.assert_called_with(image))
 
     def test_how_full_returns_approximatelly_correct_fill_level(self):
@@ -119,8 +115,6 @@ class Test_screen_shot(unittest.TestCase):
             with patch.object(visuals, '_standardize_image') as m_stdize:
                 m_stdize.return_value = _generic_image(channels=3)
                 visuals.screen_shot()
-        # bare mock assertions are dangerous. without confirmation, could just
-        # be mispelled
         self.assertIsNone(m_stdize.assert_called_with(m_grab.return_value))
 
 
@@ -132,8 +126,6 @@ class Test_ImageIdentifier(unittest.TestCase):
         with patch.object(visuals, '_standardize_image') as m_stdize:
             m_stdize.return_value = _generic_image(channels=3)
             ImageIdentifier(templates)
-        # bare mock assertions are dangerous. without confirmation, could just
-        # be mispelled
         self.assertIsNone(m_stdize.assert_called_with(image))
 
     def test_identify_standardizes_image(self):
@@ -144,8 +136,6 @@ class Test_ImageIdentifier(unittest.TestCase):
         with patch.object(visuals, '_standardize_image') as m_stdize:
             m_stdize.return_value = _generic_image(channels=3)
             ii.identify(image)
-        # bare mock assertions are dangerous. without confirmation, could just
-        # be mispelled
         self.assertIsNone(m_stdize.assert_called_with(image))
 
     def test_identify_equalizes_template_and_image_sizes(self):
@@ -262,8 +252,6 @@ class Test_Grid(unittest.TestCase):
         g = self._generic_grid(dimensions=some_dimensions)
         with patch.object(visuals, '_validate_dimensions') as m_validate:
             g.dimensions = other_dimensions
-        # bare mock assertions are dangerous. without confirmation, could just
-        # be mispelled
         self.assertIsNone(m_validate.assert_called_with(other_dimensions))
 
     def test_seting_cell_padding_validates_padding_converted_to_rectangle(self):
@@ -276,8 +264,6 @@ class Test_Grid(unittest.TestCase):
         # Set *new* padding and make sure the validation is called
         with patch.object(visuals, '_validate_proportions') as m_validate:
             g.cell_padding = cell_padding_2
-        # bare mock assertions are dangerous. without confirmation, could just
-        # be mispelled
         self.assertIsNone(m_validate.assert_called_with(padded_cell_2))
 
     # Splitting an image into a grid
@@ -351,8 +337,6 @@ class Test_ProportionalRegion(unittest.TestCase):
         pr = ProportionalRegion(some_proportions)
         with patch.object(visuals, '_validate_proportions') as m_validate:
             pr.proportions = other_proportions
-        # bare mock assertions are dangerous. without confirmation, could just
-        # be mispelled
         self.assertIsNone(m_validate.assert_called_with(other_proportions))
 
     # Returning the window
