@@ -8,7 +8,7 @@ except ImportError:
 
 setup(
     name='investigators',
-    version='0.1.3',
+    version='0.1.4',
     py_modules=['distribute_setup'],
     packages=['investigators'],
     install_requires=['numpy', 'PIL'],
