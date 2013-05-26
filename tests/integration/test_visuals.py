@@ -580,10 +580,10 @@ class Test_Helpers(unittest.TestCase):
 def _generic_image(height=None, width=None, channels=None):
     height = height if not height is None else 30
     width = width if not width is None else 40
-    if channels:
-        shape = (height, width, channels)
-    else:
+    if channels is 0:
         shape = (height, width)
+    else:
+        shape = (height, width, channels or 3)
     return numpy.zeros(shape, dtype=numpy.uint8)
 
 
