@@ -55,9 +55,7 @@ class TankLevel(object):
         else:
             cropped = dilated
         # find longest horizontal line
-        border_row = self._find_border_row(cropped, fill, empty)
-        h = cropped.shape[0]
-        fill_portion = float(h - border_row) / h
+        fill_portion = self._find_fill_level(cropped, fill, empty)
         return fill_portion
 
     def _reduce_palette(self, image, fill, empty, ignore):
@@ -165,27 +163,34 @@ class TankLevel(object):
         x, y, w, h = cv2.boundingRect(contours[0])
         return image[y:y + h, x: x + w]
 
-    def _find_border_row(self, image, fill, empty):
+    def _find_fill_level(self, image, fill, empty):
         """Return the row of the following in order:
         - strongest horizontal border found in image
         - image top if fill color is prevalent
         - image bottom if empty color is prevalent
         - image bottom if same amount of fill and empty
         """
+        min_width = int(round(0.3 * image.shape[1]))
         edges = cv2.Canny(image, 80, 160)
         import math
         lines = cv2.HoughLinesP(edges, 1, math.pi/2, 2)
         # return based on the strongest border:
         if lines is not None:
-            fill_line = max(lines[0], key=lambda (x1, y1, x2, y2): abs(x2 - x1))
-            return fill_line[1]
-        # return based on balance of fill and empty color
+            fill_line_l_r = max(lines[0],
+                                key=lambda (x1, y1, x2, y2): abs(x2 - x1))
+            line_width = abs(fill_line_l_r[2] - fill_line_l_r[0])
+            border_row = fill_line_l_r[1]
+            h, w = image.shape[0:2]
+            # minimum width on the fill line (don't allow tiny edge to count)
+            if line_width >= min_width:
+                fill_portion = float(h - border_row) / h
+                return fill_portion
+            else:
+                pass  # the discovered line isn't good enough to use
+        # calculate fill based on balance of fill and empty color
         fill_count = len(numpy.nonzero(numpy.all(image == fill, axis=-1))[0])
         empty_count = len(numpy.nonzero(numpy.all(image == empty, axis=-1))[0])
-        if fill_count > empty_count:
-            return 0  # top of the image (full)
-        # by default, return bottom of the image (empty)
-        return image.shape[0] - 1  # bottom of the image
+        return float(fill_count) / (fill_count + empty_count)
 
     def _validate_colors(self, fill_empty_ignore):
         # confirm 3 tuple
@@ -479,14 +484,13 @@ class TemplateFinder(object):
         return new_image
 
     def locate_in(self, scene):
-        """Return the boundaries and image of the best template/size
-        match in the scene.
+        """Return the boundaries of the best template/size match in the scene.
 
         Arguments:
         scene_std: pil rgb or opencv (numpy) bgr, bgra or gray image.
 
         Return:
-        tuple of boundaries (top, left, bottom, right) and result image
+        tuple of boundaries (top, left, bottom, right)
         """
         # prepare the speed scaled and original scenes carefully
         scene_std = _standardize_image(scene)

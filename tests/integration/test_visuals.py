@@ -25,7 +25,7 @@ class Test_TankLevel(unittest.TestCase):
         tl = self._generic_TankLevel(fill=fill, empty=empty, ignore=ignore)
         fill_level = tl.how_full(tank_image)
         fill_level_spec = 0.77
-        tolerance = 0.1  # allow +/- 10%
+        tolerance = 0.2  # allow +/- 20%
         self.assertAlmostEqual(fill_level, fill_level_spec, delta=tolerance)
 
     def test_how_full_returns_full_if_fill_is_majority_and_no_border(self):
