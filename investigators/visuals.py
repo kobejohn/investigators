@@ -160,7 +160,8 @@ class TankLevel(object):
                                   245, 255, cv2.THRESH_BINARY)
         contours, hierarchy = cv2.findContours(thresh, cv2.RETR_EXTERNAL,
                                                cv2.CHAIN_APPROX_SIMPLE)
-        x, y, w, h = cv2.boundingRect(contours[0])
+        # 'int' conversion before is workaround to opencv 2.4.3 bug
+        x, y, w, h = cv2.boundingRect(contours[0].astype('int'))
         return image[y:y + h, x: x + w]
 
     def _find_fill_level(self, image, fill, empty):
