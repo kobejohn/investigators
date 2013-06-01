@@ -1,20 +1,19 @@
 try:
-    from setuptools import setup
+    from setuptools import setup, find_packages
 except ImportError:
     from distribute_setup import use_setuptools
     use_setuptools()
-    from setuptools import setup
+    from setuptools import setup, find_packages
 
 
 setup(
     name='investigators',
     version='0.1.4.1',
     py_modules=['distribute_setup'],
-    packages=['investigators'],
+    packages=find_packages(),
+    package_data={'': ['*.pyd', '*.png']},
     install_requires=['numpy', 'PIL'],
-    tests_require=['mock', 'PIL'],
-    package_data={'': ['cv2.pyd', '*.png']},
-    include_package_data=True,
+    tests_require=['mock', 'numpy', 'PIL'],
     url='http://github.com/kobejohn/investigators',
     license='MIT',
     author='KobeJohn',
