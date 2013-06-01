@@ -54,6 +54,8 @@ class TankLevel(object):
             cropped = self._crop(dilated, ignore)
         else:
             cropped = dilated
+        if cropped is None:
+            return  # error
         # find longest horizontal line
         fill_portion = self._find_fill_level(cropped, fill, empty)
         return fill_portion
@@ -148,7 +150,7 @@ class TankLevel(object):
         return dilated
 
     def _crop(self, image, ignore):
-        """Crop any borders that match ignore."""
+        """Crop any borders that match ignore or return None if none found."""
         # thanks to Abid Rahman K on Stack Overflow for the nice crop technique
         # http://stackoverflow.com/a/13539194/377366
         ignore_map = numpy.all(image != ignore, axis=-1)
@@ -161,8 +163,11 @@ class TankLevel(object):
         contours, hierarchy = cv2.findContours(thresh, cv2.RETR_EXTERNAL,
                                                cv2.CHAIN_APPROX_SIMPLE)
         # 'int' conversion before is workaround to opencv 2.4.3 bug
-        x, y, w, h = cv2.boundingRect(contours[0].astype('int'))
-        return image[y:y + h, x: x + w]
+        if contours:
+            x, y, w, h = cv2.boundingRect(contours[0].astype('int'))
+            return image[y:y + h, x: x + w]
+        else:
+            return None
 
     def _find_fill_level(self, image, fill, empty):
         """Return the row of the following in order:

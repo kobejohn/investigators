@@ -39,7 +39,7 @@ class Test_TankLevel(unittest.TestCase):
         tolerance = 0.1  # allow +/- 10%
         self.assertAlmostEqual(fill_level, fill_level_spec, delta=tolerance)
 
-    def test_how_full_returns_full_if_fill_is_majority_and_no_border(self):
+    def test_how_full_returns_empty_if_fill_is_majority_and_no_border(self):
         fill = 255
         empty = 0
         tank_image = _generic_image()
@@ -49,6 +49,13 @@ class Test_TankLevel(unittest.TestCase):
         fill_level_spec = 0.0
         tolerance = 0.1  # allow +/- 10%
         self.assertAlmostEqual(fill_level, fill_level_spec, delta=tolerance)
+
+    def test_how_full_returns_None_if_crop_has_an_error(self):
+        tl = self._generic_TankLevel(ignore=(0, 0, 0))
+        with patch.object(tl, '_crop') as m_crop:
+            m_crop.return_value = None
+            fill_level = tl.how_full(_generic_image())
+        self.assertIsNone(fill_level)
 
     # Configuration / Internal specification
     def test_how_full_standardizes_tank_image(self):
