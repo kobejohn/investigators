@@ -8,7 +8,7 @@ except ImportError:
 
 setup(
     name='investigators',
-    version='0.1.4.1',
+    version='0.1.4.2',
     py_modules=['distribute_setup'],
     packages=find_packages(),
     package_data={'': ['*.pyd', '*.png']},
