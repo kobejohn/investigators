@@ -19,10 +19,12 @@ TemplateFinder: working
 ProportionalRegion: working
 
 
-Command Line Example for currently working investigators
+Command Line Example
 ================
 
-This can be found in tests/manual/.
+This is long, but shows all of the currently working investigators.
+
+It can be found along with the test images in tests/manual/.
 
     import numpy
     from investigators.visuals import cv2  # package includes a fallback cv2
@@ -96,6 +98,27 @@ This can be found in tests/manual/.
     health = cv2.resize(health, (w * 3, h * 3), interpolation=cv2.INTER_CUBIC)
     cv2.putText(health, health_string, (25, 25), 0, 0.8, (0, 255, 0), 2)
     cv2.imshow('player health bar', health)
+    cv2.waitKey()
+
+    # Use ProportionalRegion to isolate the extra actions area within the game
+    tlbr_proportions = (120.0 / 960, 1100.0 / 1280, 160.0 / 960, 1220.0 / 1280)
+    proportional = ProportionalRegion(tlbr_proportions)
+    t, l, b, r = proportional.region_in(game)
+    token_region = game[t:b, l:r]
+
+    # Use TemplateFinder (multiple) to check for extra actions
+    token_template = cv2.imread('extra_turn_token.png')
+    possible_sizes = (17, 14),
+    finder = TemplateFinder(token_template, sizes=possible_sizes,
+                            acceptable_threshold=0.1, immediate_threshold=0.1)
+    found_tokens = finder.locate_multiple_in(token_region)
+    for borders in found_tokens:
+        t, l, b, r = borders
+        cv2.rectangle(token_region, (l, t), (r, b), (255, 255, 255), 2)
+    h, w = token_region.shape[0:2]
+    token_region = cv2.resize(token_region, (w * 3, h * 3),
+                              interpolation=cv2.INTER_CUBIC)
+    cv2.imshow('extra actions', token_region)
     cv2.waitKey()
 
     # clean up

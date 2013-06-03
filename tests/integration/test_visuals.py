@@ -423,6 +423,36 @@ class Test_TemplateFinder(unittest.TestCase):
         self.assertEqual(borders,
                          (top_spec, left_spec, bottom_spec, right_spec))
 
+    def test_locate_multiple_returns_empty_sequence_if_nothing_found(self):
+        # setup a template and scene that should be guaranteed not to be matched
+        black_template = _generic_image(height=5, width=10)
+        black_template.fill(0)
+        white_scene = _generic_image(height=20, width=20)
+        white_scene.fill(255)
+        tf = TemplateFinder(black_template)
+        p = tf.locate_multiple_in(white_scene)
+        empty_sequence = tuple()
+        self.assertSequenceEqual(p, empty_sequence)
+
+    def test_locate_multiple_returns_all_matches_better_than_acceptable(self):
+        # put a set of black "images" on a white background to be searched for
+        tlbr_specs = [(2, 2, 4, 4),
+                      (5, 5, 7, 7),
+                      (8, 8, 10, 10)]
+        white_scene = _generic_image(height=20, width=20)
+        white_scene.fill(255)
+        black_template = _generic_image(height=2, width=2)
+        black_template.fill(0)
+        # setup thresholds to exercise the spec
+        tf = TemplateFinder(black_template,
+                            acceptable_threshold=1,
+                            immediate_threshold=1)
+        # set black squares to match the template
+        for t, l, b, r in tlbr_specs:
+            white_scene[t:b, l:r] = 0
+        borders = tf.locate_multiple_in(white_scene)
+        self.assertItemsEqual(borders, tlbr_specs)
+
     # Configuration / Internal specification
     def test___init___changes_parts_with_templ_mask_sizes_scale(self):
         template = _generic_image()

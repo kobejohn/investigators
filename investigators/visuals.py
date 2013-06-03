@@ -489,14 +489,16 @@ class TemplateFinder(object):
         new_image[zeros] = noise[zeros]
         return new_image
 
-    def locate_in(self, scene):
-        """Return the boundaries of the best template/size match in the scene.
+    def locate_multiple_in(self, scene, just_one=False):
+        """Return the boundaries of all template/size matches in the scene.
 
         Arguments:
         scene_std: pil rgb or opencv (numpy) bgr, bgra or gray image.
+        just_one: True/False for special case of finding just one match
 
         Return:
-        tuple of boundaries (top, left, bottom, right)
+        sequence of tuple of boundaries (top, left, bottom, right)
+            or empty sequence
         """
         # prepare the speed scaled and original scenes carefully
         scene_std = _standardize_image(scene)
@@ -512,8 +514,8 @@ class TemplateFinder(object):
                                       (scene_scaled_w, scene_scaled_h),
                                       interpolation=cv2.INTER_AREA)
         matchvals_and_borders = list()
-        HEIGHT = 1
         # test templates from smallest to largest to cover more earlier
+        HEIGHT = 1
         small_to_big_templates = sorted(self._templates.items(),
                                         key=lambda (size, templ): size[HEIGHT])
         for template_original_size, template in small_to_big_templates:
@@ -544,32 +546,81 @@ class TemplateFinder(object):
             # 255^2 * T size
             norm = (255 ** 2) * template_scaled_h * template_scaled_w
             result /= float(norm)  # float just for paranoia
-            min_val, max_val, (min_left, min_top), max_left_top\
-                = cv2.minMaxLoc(result)
+            # there are potentially a lot of matches in this one
+            # correlation map, so filter it by the minimum distance
+            matches = numpy.where(numpy.logical_or(
+                    result < self.immediate_threshold,
+                    result < self.acceptable_threshold))
+            matches = zip(matches[0], matches[1])
+            remaining = {position: None for position in matches}
+            sources = [p for p, status in remaining.items() if status is None]
+            min_vertical_distance = int(round(template_scaled_h * 0.8))
+            min_horizontal_distance = int(round(template_scaled_w * 0.8))
+            while sources:
+                source = source_y, source_x = sources[0]
+                in_range_cluster = list()
+                for other in remaining.keys():
+                    other_y, other_x = other
+                    in_range = abs(source_y - other_y) < min_vertical_distance\
+                        and abs(source_x - other_x) < min_horizontal_distance
+                    if in_range:
+                        in_range_cluster.append(other)
+                # choose the best in this cluster and remove losers from pool
+                remaining[source] = 'tested'
+                if in_range_cluster:
+                    best = min(in_range_cluster, key=lambda p: result[p])
+                    for p in in_range_cluster:
+                        if p != best:
+                            del(remaining[p])
+                sources = [p for p, status in remaining.items()
+                           if status is None]
+            # now all remaining points are more than minimum range apart
+            # for this template size. put them all on the result list
             # reverse the speed scaling to produce a rectangle in the original
-            top_original = int(round(float(min_top) / speed_scale))
-            left_original = int(round(float(min_left) / speed_scale))
-            bottom_original = int(round(float(min_top + template_scaled_h)
-                                        / speed_scale))
-            right_original = int(round(float(min_left + template_scaled_w)
-                                       / speed_scale))
-            rectangle = Rectangle(top_original, left_original,
-                                  bottom_original, right_original)
-            if min_val < self.immediate_threshold:
-                # return immediately if immediate better than imm. threshold
-                return rectangle
-            elif min_val < self.acceptable_threshold:
-                # store this result for later if it's acceptable
-                matchvals_and_borders.append((min_val, rectangle))
-            else:
-                pass  # ignore this result if it's not within acceptable level
-        # after all templates, return the best match, if any
+            for scaled_p in remaining.keys():
+                top, left = scaled_p
+                top_original = int(round(float(top) / speed_scale))
+                left_original = int(round(float(left) / speed_scale))
+                bottom_original = int(round(float(top + template_scaled_h)
+                                            / speed_scale))
+                right_original = int(round(float(left + template_scaled_w)
+                                           / speed_scale))
+                rectangle = Rectangle(top_original, left_original,
+                                      bottom_original, right_original)
+                match_val = result[scaled_p]
+                if match_val < self.immediate_threshold:
+                    if just_one:
+                        # stop looking if immediate better than imm. threshold
+                        # and only looking for one match
+                        return rectangle,  # method always returns sequence
+                    matchvals_and_borders.append((match_val, rectangle))
+                elif match_val < self.acceptable_threshold:
+                    # store this result for later if it's acceptable
+                    matchvals_and_borders.append((match_val, rectangle))
+                else:
+                    pass  # ignore this result since it doesn't qualify
+        # after all templates, return all matches
         if matchvals_and_borders:
-            match_val, rectangle = min(matchvals_and_borders,
-                                       key=lambda x: x[0])
-            return rectangle
-        # explicitly satisfy specification to return None when failed to locate
-        return None
+            matchvals_and_borders.sort(key=lambda (v, b): v)
+            return tuple(rectangle for v, rectangle in matchvals_and_borders)
+        # explicitly satisfy specification to return empty sequence when failed
+        return tuple()
+
+    def locate_in(self, scene):
+        """Return the boundaries of the best template/size match in the scene.
+        Return None if the templates can not be found.
+
+        Arguments:
+        scene_std: pil rgb or opencv (numpy) bgr, bgra or gray image.
+
+        Return:
+        tuple of boundaries (top, left, bottom, right)
+        """
+        results = self.locate_multiple_in(scene, just_one=True)
+        if results:
+            return results[0]
+        else:
+            return None
 
     @property
     def template(self):
